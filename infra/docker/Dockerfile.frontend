@@ -1,0 +1,16 @@
+FROM node:20-alpine AS base
+
+WORKDIR /app
+
+# Copy dependency files
+COPY frontend/package.json frontend/package-lock.json* ./
+
+# Install dependencies
+RUN npm ci 2>/dev/null || npm install
+
+# Copy source code
+COPY frontend/ .
+
+EXPOSE 3000
+
+CMD ["npm", "run", "dev"]

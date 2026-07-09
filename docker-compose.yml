@@ -1,0 +1,144 @@
+services:
+  # ── Backend ──────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - backend/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://leadplatform:leadplatform@postgres:5432/leadplatform
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/alembic:/app/alembic
+    command: uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8000 --reload
+
+  # ── Frontend ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    env_file:
+      - frontend/.env
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+
+  # ── Celery Worker ────────────────────────────────────────
+  celery-worker:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.backend
+    env_file:
+      - backend/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://leadplatform:leadplatform@postgres:5432/leadplatform
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+    command: uv run celery -A src.workers.celery_app worker -l info -Q default,scraping,enrichment,ai,outreach
+
+  # ── Celery Beat (Scheduler) ──────────────────────────────
+  celery-beat:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.backend
+    env_file:
+      - backend/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://leadplatform:leadplatform@postgres:5432/leadplatform
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+    command: uv run celery -A src.workers.celery_app beat -l info
+
+  # ── PostgreSQL ───────────────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: leadplatform
+      POSTGRES_PASSWORD: leadplatform
+      POSTGRES_DB: leadplatform
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leadplatform"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis ────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Elasticsearch (optional) ─────────────────────────────
+  elasticsearch:
+    image: elasticsearch:8.15.0
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO (S3-compatible object storage) ─────────────────
+  minio:
+    image: minio/minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  es_data:
+  minio_data:
