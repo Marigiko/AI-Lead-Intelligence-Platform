@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from uuid import UUID
 
     from src.api.dependencies import CurrentUser, DBSession
+    from src.core.security import TokenPayload
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
 
@@ -184,13 +185,32 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+async def _ws_get_token(websocket: WebSocket) -> TokenPayload:
+    from src.core.security import decode_token
+
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Missing token")
+        raise WebSocketDisconnect(code=4001)  # type: ignore[misc]
+    payload = decode_token(token)
+    if not payload or payload.type.value != "access":
+        await websocket.close(code=4001, reason="Invalid token")
+        raise WebSocketDisconnect(code=4001)  # type: ignore[misc]
+    return payload
+
+
 @router.websocket("/ws/{conversation_id}")
 async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
+    try:
+        await _ws_get_token(websocket)
+    except WebSocketDisconnect:
+        return
+
+    await websocket.accept()
     await manager.connect(websocket, conversation_id)
     try:
         while True:
             data = await websocket.receive_json()
-            # Echo back for now — will be enhanced with real-time AI responses
             await websocket.send_json({"type": "ack", "data": data})
     except WebSocketDisconnect:
         manager.disconnect(websocket, conversation_id)

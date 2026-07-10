@@ -36,6 +36,26 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
+_INSECURE_DEFAULTS = ("change-me-in-production", "secret", "password", "admin")
+
+
+def _validate_production_settings(settings: Any) -> None:
+    import sys
+
+    errors: list[str] = []
+    if settings.secret_key in _INSECURE_DEFAULTS:
+        errors.append("SECRET_KEY must be set to a secure random value")
+    if settings.jwt_secret_key in _INSECURE_DEFAULTS:
+        errors.append("JWT_SECRET_KEY must be set to a secure random value")
+    if errors:
+        for err in errors:
+            logger.critical("insecure_config", error=err)
+        print(
+            "FATAL: Insecure configuration detected:\n  - " + "\n  - ".join(errors),
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
@@ -75,6 +95,9 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
 
 def create_app() -> FastAPI:
     settings = get_settings()
+
+    if settings.is_production:
+        _validate_production_settings(settings)
 
     app = FastAPI(
         title=settings.app_name,
