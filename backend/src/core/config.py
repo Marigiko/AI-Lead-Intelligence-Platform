@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     app_name: str = "AI Lead Intelligence Platform"
     app_url: str = "http://localhost:3000"
     api_url: str = "http://localhost:8000"
-    environment: Literal["development", "staging", "production"] = "development"
+    environment: Literal["development", "testing", "staging", "production"] = "development"
     debug: bool = True
     secret_key: str = "change-me-in-production"  # noqa: S105
 
