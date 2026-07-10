@@ -1,9 +1,9 @@
 """
 SEO analyzer — checks meta tags, performance indicators, and SEO health.
 """
+
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -14,9 +14,18 @@ from bs4 import BeautifulSoup
 logger = structlog.get_logger()
 
 
+def _match_og_property(value: str | None) -> bool:
+    return value is not None and value.startswith("og:")
+
+
+def _match_twitter_name(value: str | None) -> bool:
+    return value is not None and value.startswith("twitter:")
+
+
 @dataclass
 class SeoResult:
     """SEO analysis result for a website."""
+
     # Meta tags
     has_title: bool = False
     title_length: int = 0
@@ -49,8 +58,8 @@ class SeoResult:
 
     # Score
     score: int = 0  # 0-100
-    issues: list[str] = field(default_factory=list)
-    recommendations: list[str] = field(default_factory=list)
+    issues: list[str] = field(default_factory=list[str])
+    recommendations: list[str] = field(default_factory=list[str])
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -96,6 +105,7 @@ class SeoAnalyzer:
 
             # Fetch main page
             import time
+
             start = time.monotonic()
 
             async with httpx.AsyncClient(
@@ -153,7 +163,7 @@ class SeoAnalyzer:
         meta_desc = soup.find("meta", attrs={"name": "description"})
         if meta_desc and meta_desc.get("content"):
             result.has_meta_description = True
-            result.meta_description_length = len(meta_desc["content"].strip())
+            result.meta_description_length = len(str(meta_desc["content"]).strip())
             if result.meta_description_length < 120:
                 result.issues.append("Meta description too short (< 120 chars)")
             elif result.meta_description_length > 160:
@@ -177,13 +187,13 @@ class SeoAnalyzer:
             result.recommendations.append("Add canonical URL")
 
         # Open Graph
-        og_tags = soup.find_all("meta", attrs={"property": lambda x: x and x.startswith("og:")})
+        og_tags = soup.find_all("meta", attrs={"property": _match_og_property})
         result.has_og_tags = len(og_tags) > 0
         if not result.has_og_tags:
             result.recommendations.append("Add Open Graph tags for social sharing")
 
         # Twitter Cards
-        twitter_tags = soup.find_all("meta", attrs={"name": lambda x: x and x.startswith("twitter:")})
+        twitter_tags = soup.find_all("meta", attrs={"name": _match_twitter_name})
         result.has_twitter_cards = len(twitter_tags) > 0
 
         # Viewport
@@ -197,7 +207,9 @@ class SeoAnalyzer:
         result.has_robots_meta = robots_meta is not None
 
         # Favicon
-        favicon = soup.find("link", attrs={"rel": "icon"}) or soup.find("link", attrs={"rel": "shortcut icon"})
+        favicon = soup.find("link", attrs={"rel": "icon"}) or soup.find(
+            "link", attrs={"rel": "shortcut icon"}
+        )
         result.has_favicon = favicon is not None
 
         # Structured data
@@ -217,19 +229,20 @@ class SeoAnalyzer:
         # Images
         images = soup.find_all("img")
         result.image_count = len(images)
-        result.images_with_alt = sum(1 for img in images if img.get("alt", "").strip())
+        result.images_with_alt = sum(1 for img in images if str(img.get("alt", "")).strip())
         if result.image_count > 0 and result.images_with_alt < result.image_count:
             missing = result.image_count - result.images_with_alt
             result.issues.append(f"{missing} images missing alt text")
 
     def _analyze_links(self, soup: BeautifulSoup, base_url: str, result: SeoResult) -> None:
         from urllib.parse import urlparse
+
         base_domain = urlparse(base_url).netloc
 
         links = soup.find_all("a", href=True)
         for link in links:
-            href = link["href"]
-            if href.startswith("#") or href.startswith("javascript:"):
+            href = str(link["href"])
+            if href.startswith(("#", "javascript:")):
                 continue
             try:
                 parsed = urlparse(href)
@@ -243,6 +256,7 @@ class SeoAnalyzer:
     async def _check_robots_txt(self, url: str) -> bool:
         try:
             from urllib.parse import urlparse
+
             parsed = urlparse(url)
             robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
             async with httpx.AsyncClient(timeout=5) as client:
@@ -254,6 +268,7 @@ class SeoAnalyzer:
     async def _check_sitemap(self, url: str) -> bool:
         try:
             from urllib.parse import urlparse
+
             parsed = urlparse(url)
             for path in ["/sitemap.xml", "/sitemap_index.xml"]:
                 sitemap_url = f"{parsed.scheme}://{parsed.netloc}{path}"

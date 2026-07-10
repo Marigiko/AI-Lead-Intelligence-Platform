@@ -1,28 +1,34 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import structlog
+
 from src.workers.celery_app import celery_app
 
 logger = structlog.get_logger()
 
 
-@celery_app.task(name="src.workers.outreach_tasks.send_campaign_email")
-def send_campaign_email(campaign_lead_id: str) -> dict:
+@celery_app.task(name="src.workers.outreach_tasks.send_campaign_email")  # type: ignore[reportUntypedFunctionDecorator]
+def send_campaign_email(campaign_lead_id: str) -> dict[str, Any]:
     """Send a single campaign email."""
     logger.info("email_send_started", campaign_lead_id=campaign_lead_id)
 
     async def _run():
         from uuid import UUID
+
         from src.core.database import get_session_factory
-        from src.infrastructure.database.repositories.campaign_repo import SQLAlchemyCampaignLeadRepository
+        from src.infrastructure.database.repositories.campaign_repo import (
+            SQLAlchemyCampaignLeadRepository,
+        )
         from src.infrastructure.email.sender import EmailMessage, get_email_sender
 
         factory = get_session_factory()
         async with factory() as session:
             repo = SQLAlchemyCampaignLeadRepository(session)
             from src.domain.campaign.models import CampaignLead
+
             lead = await session.get(CampaignLead, UUID(campaign_lead_id))
             if not lead or not lead.email or not lead.message_content:
                 return {"error": "Lead not found or no content"}
@@ -51,13 +57,14 @@ def send_campaign_email(campaign_lead_id: str) -> dict:
     return asyncio.run(_run())
 
 
-@celery_app.task(name="src.workers.outreach_tasks.send_campaign_batch")
-def send_campaign_batch(campaign_id: str) -> dict:
+@celery_app.task(name="src.workers.outreach_tasks.send_campaign_batch")  # type: ignore[reportUntypedFunctionDecorator]
+def send_campaign_batch(campaign_id: str) -> dict[str, Any]:
     """Send all pending emails in a campaign as a batch."""
     logger.info("campaign_batch_started", campaign_id=campaign_id)
 
     async def _run():
         from uuid import UUID
+
         from src.core.database import get_session_factory
         from src.infrastructure.database.repositories.campaign_repo import (
             SQLAlchemyCampaignLeadRepository,

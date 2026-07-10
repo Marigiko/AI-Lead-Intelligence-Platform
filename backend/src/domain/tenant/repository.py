@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from uuid import UUID
+from typing import TYPE_CHECKING
 
-from src.domain.tenant.models import Tenant
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from src.domain.tenant.models import Tenant
 
 
 class TenantRepository(ABC):

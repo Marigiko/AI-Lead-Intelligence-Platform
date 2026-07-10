@@ -1,6 +1,7 @@
 """
 AI Gateway — unified interface for multiple LLM providers via LiteLLM.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -16,13 +17,14 @@ logger = structlog.get_logger()
 @dataclass
 class AIResponse:
     """Response from the AI gateway."""
+
     content: str
     model: str
     provider: str
     tokens_used: int = 0
     cost_usd: float = 0.0
     finish_reason: str = ""
-    raw: dict[str, Any] = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
 
 
 class AIGateway:
@@ -35,6 +37,7 @@ class AIGateway:
         if self._client is None:
             try:
                 import litellm
+
                 litellm.success_callback = []
                 litellm.failure_callback = []
                 self._client = litellm
@@ -67,18 +70,33 @@ class AIGateway:
             if response_format == "json":
                 kwargs["response_format"] = {"type": "json_object"}
 
-            response = client.completion(**kwargs)
+            litellm_client: Any = client
+            response: Any = litellm_client.completion(**kwargs)
 
-            content = response.choices[0].message.content or ""
+            if not hasattr(response, "choices") or not response.choices:
+                content_str = str(getattr(response, "content", ""))
+                return AIResponse(
+                    content=content_str,
+                    model=model,
+                    provider=model.split("/")[0] if "/" in model else "unknown",
+                    tokens_used=0,
+                    finish_reason="",
+                    raw={"id": str(getattr(response, "id", ""))},
+                )
+
+            choices = response.choices
+            message = choices[0].message
+            content = message.content or ""
             usage = getattr(response, "usage", None)
+            resp_model = response.model or model
 
             return AIResponse(
                 content=content,
-                model=response.model,
-                provider=response.model.split("/")[0] if "/" in response.model else "unknown",
+                model=resp_model,
+                provider=str(resp_model).split("/")[0] if "/" in str(resp_model) else "unknown",
                 tokens_used=usage.total_tokens if usage else 0,
-                finish_reason=response.choices[0].finish_reason or "",
-                raw={"id": response.id},
+                finish_reason=choices[0].finish_reason or "",
+                raw={"id": str(getattr(response, "id", ""))},
             )
 
         except Exception as e:
@@ -87,8 +105,10 @@ class AIGateway:
             if model != settings.ai_default_model:
                 logger.info("ai_fallback", from_model=model, to_model=settings.ai_default_model)
                 return await self.complete(
-                    messages, model=settings.ai_default_model,
-                    temperature=temperature, max_tokens=max_tokens,
+                    messages,
+                    model=settings.ai_default_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
                 )
             raise
 
@@ -106,7 +126,9 @@ class AIGateway:
         if company_data.get("industry"):
             context_parts.append(f"Industry: {company_data['industry']}")
         if company_data.get("city"):
-            context_parts.append(f"Location: {company_data['city']}, {company_data.get('province', '')}")
+            context_parts.append(
+                f"Location: {company_data['city']}, {company_data.get('province', '')}"
+            )
         if company_data.get("domain"):
             context_parts.append(f"Website: {company_data['domain']}")
         if seo_data:
@@ -134,7 +156,8 @@ class AIGateway:
                     "You are a B2B sales analyst for a digital services agency. "
                     "Analyze the company and provide a JSON response with: "
                     "opportunity_score (0-100), "
-                    "opportunity_breakdown (object with scores for web_presence, seo, social, automation, technical), "
+                    "opportunity_breakdown (object with scores for "
+                    "web_presence, seo, social, automation, technical), "
                     "analysis (2-3 paragraph text analysis in Spanish), "
                     "recommended_services (array of service names), "
                     "estimated_deal_value (number in USD), "
@@ -158,6 +181,7 @@ class AIGateway:
         )
 
         import json
+
         try:
             return json.loads(response.content)
         except json.JSONDecodeError:

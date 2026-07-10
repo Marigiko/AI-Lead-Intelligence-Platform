@@ -1,10 +1,11 @@
 """
 AI Intent Parser — converts natural language business search intent into structured search rules.
 """
+
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
+from typing import Any
 
 import structlog
 
@@ -14,12 +15,13 @@ logger = structlog.get_logger()
 @dataclass
 class SearchRules:
     """Structured search rules derived from natural language intent."""
-    keywords: list[str] = field(default_factory=list)
-    industries: list[str] = field(default_factory=list)
-    exclude_industries: list[str] = field(default_factory=list)
-    signals: list[str] = field(default_factory=list)
+
+    keywords: list[str] = field(default_factory=list[str])
+    industries: list[str] = field(default_factory=list[str])
+    exclude_industries: list[str] = field(default_factory=list[str])
+    signals: list[str] = field(default_factory=list[str])
     # Signals like: "no_website", "slow_website", "no_seo", "no_reviews", etc.
-    sources: list[str] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list[str])
     # Preferred sources: ["google_maps", "directories", "linkedin"]
     min_reviews: int | None = None
     max_reviews: int | None = None
@@ -27,7 +29,7 @@ class SearchRules:
 
 
 # Mapping of common Spanish intents to structured rules
-INTENT_MAPPINGS: dict[str, dict] = {
+INTENT_MAPPINGS: dict[str, dict[str, Any]] = {
     "sin pagina web": {
         "has_website": False,
         "signals": ["no_website"],
@@ -153,10 +155,32 @@ class IntentParser:
         if not matched and not rules.keywords:
             # Extract meaningful words (remove common stop words)
             stop_words = {
-                "que", "necesiten", "necesita", "con", "sin", "para", "por",
-                "una", "un", "el", "la", "los", "las", "de", "del", "al",
-                "sean", "tengan", "que", "puedan", "empresa", "empresas",
-                "negocio", "negocios", "sitio", "web", "pagina",
+                "que",
+                "necesiten",
+                "necesita",
+                "con",
+                "sin",
+                "para",
+                "por",
+                "una",
+                "un",
+                "el",
+                "la",
+                "los",
+                "las",
+                "de",
+                "del",
+                "al",
+                "sean",
+                "tengan",
+                "puedan",
+                "empresa",
+                "empresas",
+                "negocio",
+                "negocios",
+                "sitio",
+                "web",
+                "pagina",
             }
             words = intent_lower.split()
             keywords = [w for w in words if w not in stop_words and len(w) > 2]

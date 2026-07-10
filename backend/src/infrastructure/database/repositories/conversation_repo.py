@@ -1,15 +1,19 @@
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.conversation.models import Conversation, ConversationMessage
 from src.domain.conversation.repository import (
     ConversationMessageRepository,
     ConversationRepository,
 )
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class SQLAlchemyConversationRepository(ConversationRepository):
@@ -36,7 +40,9 @@ class SQLAlchemyConversationRepository(ConversationRepository):
         base = select(Conversation).where(Conversation.tenant_id == tenant_id)
         if status:
             base = base.where(Conversation.status == status)
-        count = (await self._session.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+        count = (
+            await self._session.execute(select(func.count()).select_from(base.subquery()))
+        ).scalar() or 0
         stmt = base.order_by(Conversation.updated_at.desc()).offset(offset).limit(limit)
         result = await self._session.execute(stmt)
         return list(result.scalars().all()), count

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.campaign.models import Campaign, CampaignLead, MessageTemplate
 from src.domain.campaign.repository import (
@@ -11,6 +10,11 @@ from src.domain.campaign.repository import (
     CampaignRepository,
     MessageTemplateRepository,
 )
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class SQLAlchemyCampaignRepository(CampaignRepository):
@@ -41,7 +45,9 @@ class SQLAlchemyCampaignRepository(CampaignRepository):
         self, tenant_id: UUID, *, offset: int = 0, limit: int = 20
     ) -> tuple[list[Campaign], int]:
         base = select(Campaign).where(Campaign.tenant_id == tenant_id)
-        count = (await self._session.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+        count = (
+            await self._session.execute(select(func.count()).select_from(base.subquery()))
+        ).scalar() or 0
         stmt = base.order_by(Campaign.created_at.desc()).offset(offset).limit(limit)
         result = await self._session.execute(stmt)
         return list(result.scalars().all()), count
@@ -86,22 +92,48 @@ class SQLAlchemyCampaignLeadRepository(CampaignLeadRepository):
 
     async def get_campaign_stats(self, campaign_id: UUID) -> dict[str, int]:
         base = select(CampaignLead).where(CampaignLead.campaign_id == campaign_id)
-        total = (await self._session.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
-        sent = (await self._session.execute(
-            select(func.count()).select_from(base.where(CampaignLead.status.in_(["sent", "delivered", "opened", "clicked", "replied"])).subquery())
-        )).scalar() or 0
-        opened = (await self._session.execute(
-            select(func.count()).select_from(base.where(CampaignLead.opened_at.isnot(None)).subquery())
-        )).scalar() or 0
-        clicked = (await self._session.execute(
-            select(func.count()).select_from(base.where(CampaignLead.clicked_at.isnot(None)).subquery())
-        )).scalar() or 0
-        replied = (await self._session.execute(
-            select(func.count()).select_from(base.where(CampaignLead.replied_at.isnot(None)).subquery())
-        )).scalar() or 0
-        bounced = (await self._session.execute(
-            select(func.count()).select_from(base.where(CampaignLead.bounced_at.isnot(None)).subquery())
-        )).scalar() or 0
+        total = (
+            await self._session.execute(select(func.count()).select_from(base.subquery()))
+        ).scalar() or 0
+        sent = (
+            await self._session.execute(
+                select(func.count()).select_from(
+                    base.where(
+                        CampaignLead.status.in_(
+                            ["sent", "delivered", "opened", "clicked", "replied"]
+                        )
+                    ).subquery()
+                )
+            )
+        ).scalar() or 0
+        opened = (
+            await self._session.execute(
+                select(func.count()).select_from(
+                    base.where(CampaignLead.opened_at.isnot(None)).subquery()
+                )
+            )
+        ).scalar() or 0
+        clicked = (
+            await self._session.execute(
+                select(func.count()).select_from(
+                    base.where(CampaignLead.clicked_at.isnot(None)).subquery()
+                )
+            )
+        ).scalar() or 0
+        replied = (
+            await self._session.execute(
+                select(func.count()).select_from(
+                    base.where(CampaignLead.replied_at.isnot(None)).subquery()
+                )
+            )
+        ).scalar() or 0
+        bounced = (
+            await self._session.execute(
+                select(func.count()).select_from(
+                    base.where(CampaignLead.bounced_at.isnot(None)).subquery()
+                )
+            )
+        ).scalar() or 0
 
         return {
             "total": total,

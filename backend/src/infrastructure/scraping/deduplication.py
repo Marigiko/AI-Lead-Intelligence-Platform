@@ -1,15 +1,18 @@
 """
 Company deduplication — merges results from multiple sources.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from rapidfuzz import fuzz
 
-from src.infrastructure.scraping.engine import ScrapeResult
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from src.infrastructure.scraping.engine import ScrapeResult
 
 logger = structlog.get_logger()
 
@@ -44,9 +47,7 @@ class Deduplicator:
         score = fuzz.token_sort_ratio(name1.lower(), name2.lower())
         return score >= NAME_SIMILARITY_THRESHOLD
 
-    def add_existing_companies(
-        self, companies: list[dict[str, Any]]
-    ) -> None:
+    def add_existing_companies(self, companies: list[dict[str, Any]]) -> None:
         """Add existing database companies to the seen set for deduplication."""
         for company in companies:
             name = company.get("name", "")
@@ -63,7 +64,7 @@ class Deduplicator:
     def deduplicate(
         self,
         results: list[ScrapeResult],
-        existing_company_ids: set[UUID] | None = None,
+        existing_company_ids: set[UUID] | None = None,  # noqa: ARG002
     ) -> list[ScrapeResult]:
         """
         Deduplicate results and merge data from multiple sources.
@@ -98,7 +99,7 @@ class Deduplicator:
 
             # Check fuzzy match against existing entries
             matched = False
-            for existing_key, existing_result in merged.items():
+            for _existing_key, existing_result in merged.items():
                 existing_name = existing_result.normalized_data.get("name", "")
                 if self._fuzzy_match(name, existing_name):
                     # Merge into existing

@@ -1,6 +1,7 @@
 """
 OpenStreetMap scraper — uses Overpass API for business discovery.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -26,7 +27,7 @@ class OpenStreetMapScraper(BaseScraper):
 
     async def scrape(
         self,
-        context: None,
+        context: Any,  # noqa: ARG002
         config: ScraperConfig,
     ) -> list[ScrapeResult]:
         results: list[ScrapeResult] = []
@@ -60,7 +61,7 @@ class OpenStreetMapScraper(BaseScraper):
             elements = data.get("elements", [])
             logger.info("osm_results", count=len(elements))
 
-            for element in elements[:config.max_results]:
+            for element in elements[: config.max_results]:
                 tags = element.get("tags", {})
                 name = tags.get("name", "")
                 if not name:
@@ -91,7 +92,7 @@ class OpenStreetMapScraper(BaseScraper):
         return results
 
     def _build_address(self, tags: dict[str, Any]) -> str:
-        parts = []
+        parts: list[str] = []
         if "addr:street" in tags:
             street = tags["addr:street"]
             if "addr:housenumber" in tags:

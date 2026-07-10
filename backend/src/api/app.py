@@ -2,47 +2,60 @@ from __future__ import annotations
 
 import time
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import JSONResponse, Response
 
+from src.api.v1.analytics import router as analytics_router
 from src.api.v1.auth import router as auth_router
+from src.api.v1.campaigns import router as campaigns_router
 from src.api.v1.companies import router as companies_router
+from src.api.v1.conversations import router as conversations_router
+from src.api.v1.deals import router as deals_router
 from src.api.v1.discovery import router as discovery_router
 from src.api.v1.enrichment import router as enrichment_router
 from src.api.v1.scoring import router as scoring_router
-from src.api.v1.campaigns import router as campaigns_router
 from src.api.v1.tracking import router as tracking_router
-from src.api.v1.conversations import router as conversations_router
-from src.api.v1.deals import router as deals_router
-from src.api.v1.analytics import router as analytics_router
 from src.core.config import get_settings
 from src.core.database import close_db, init_db
 from src.core.events import get_event_bus
 from src.core.exceptions import AppError
-from src.core.middleware import RateLimitMiddleware, SecurityHeadersMiddleware, RequestLoggingMiddleware
+from src.core.middleware import (
+    RateLimitMiddleware,
+    RequestLoggingMiddleware,
+    SecurityHeadersMiddleware,
+)
 from src.core.redis import close_redis, get_redis
 from src.infrastructure.scraping.engine import get_browser_pool
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
 
 logger = structlog.get_logger()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI):  # noqa: ARG001
     """Startup / shutdown lifecycle."""
     settings = get_settings()
     logger.info("starting_app", environment=settings.environment)
 
     # Import all models so SQLAlchemy registers them with Base.metadata
-    from src.domain.tenant.models import Tenant  # noqa: F401
-    from src.domain.user.models import User  # noqa: F401
-    from src.domain.company.models import Company, CompanySource  # noqa: F401
-    from src.domain.contact.models import Contact  # noqa: F401
-    from src.domain.campaign.models import Campaign, CampaignLead, MessageTemplate  # noqa: F401
-    from src.domain.conversation.models import Conversation, ConversationMessage  # noqa: F401
-    from src.domain.deal.models import Deal, Activity, PipelineStage  # noqa: F401
+    import importlib
+
+    for mod_name in (
+        "src.domain.campaign.models",
+        "src.domain.company.models",
+        "src.domain.contact.models",
+        "src.domain.conversation.models",
+        "src.domain.deal.models",
+        "src.domain.tenant.models",
+        "src.domain.user.models",
+    ):
+        importlib.import_module(mod_name)
 
     # Initialize infrastructure
     await init_db()
@@ -69,7 +82,7 @@ def create_app() -> FastAPI:
         openapi_url="/api/v1/openapi.json" if settings.debug else None,
         docs_url="/api/v1/docs" if settings.debug else None,
         redoc_url="/api/v1/redoc" if settings.debug else None,
-        default_response_class=ORJSONResponse,
+        default_response_class=JSONResponse,
         lifespan=lifespan,
     )
 
@@ -90,7 +103,9 @@ def create_app() -> FastAPI:
 
     # Request timing middleware
     @app.middleware("http")
-    async def add_timing_header(request: Request, call_next):
+    async def add_timing_header(  # pyright: ignore[reportUnusedFunction]
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         start = time.perf_counter()
         response = await call_next(request)
         elapsed_ms = (time.perf_counter() - start) * 1000
@@ -99,8 +114,8 @@ def create_app() -> FastAPI:
 
     # Global exception handler
     @app.exception_handler(AppError)
-    async def app_error_handler(request: Request, exc: AppError):
-        return ORJSONResponse(
+    async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:  # noqa: ARG001  # pyright: ignore[reportUnusedFunction]
+        return JSONResponse(
             status_code=exc.status_code,
             content={
                 "error": {
@@ -125,13 +140,13 @@ def create_app() -> FastAPI:
 
     # Health check
     @app.get("/health")
-    async def health():
+    async def health() -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
         return {"status": "ok", "version": "0.1.0"}
 
     @app.get("/api/v1/health")
-    async def api_health():
+    async def api_health() -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
         try:
-            redis = await get_redis()
+            redis: Any = await get_redis()
             await redis.ping()
             redis_ok = True
         except Exception:

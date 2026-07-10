@@ -1,9 +1,11 @@
 """
 Social media presence detection — checks if a company has social profiles.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any
 
 import httpx
 import structlog
@@ -15,6 +17,7 @@ logger = structlog.get_logger()
 @dataclass
 class SocialResult:
     """Detected social media presence."""
+
     facebook_url: str | None = None
     instagram_url: str | None = None
     linkedin_url: str | None = None
@@ -24,7 +27,7 @@ class SocialResult:
     has_social_links: bool = False
     social_count: int = 0
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "facebook_url": self.facebook_url,
             "instagram_url": self.instagram_url,
@@ -66,13 +69,17 @@ class SocialMediaDetector:
             # Find all links
             links = soup.find_all("a", href=True)
             for link in links:
-                href = link["href"].lower()
+                href = str(link["href"]).lower()
                 for platform, patterns in self.SOCIAL_PATTERNS.items():
                     for pattern in patterns:
                         if pattern in href:
-                            full_url = link["href"]
+                            full_url = str(link["href"])
                             if not full_url.startswith("http"):
-                                full_url = f"https:{full_url}" if full_url.startswith("//") else f"{url.rstrip('/')}/{full_url.lstrip('/')}"
+                                full_url = (
+                                    f"https:{full_url}"
+                                    if full_url.startswith("//")
+                                    else f"{url.rstrip('/')}/{full_url.lstrip('/')}"
+                                )
 
                             if platform == "facebook" and not result.facebook_url:
                                 result.facebook_url = full_url
@@ -91,20 +98,27 @@ class SocialMediaDetector:
             # Also check meta tags for social links
             meta_links = soup.find_all("meta", attrs={"property": "og:url"})
             for meta in meta_links:
-                content = meta.get("content", "").lower()
+                content = str(meta.get("content", "")).lower()
                 for platform, patterns in self.SOCIAL_PATTERNS.items():
                     for pattern in patterns:
                         if pattern in content:
                             if platform == "facebook" and not result.facebook_url:
-                                result.facebook_url = meta["content"]
+                                result.facebook_url = str(meta["content"])
                             elif platform == "instagram" and not result.instagram_url:
-                                result.instagram_url = meta["content"]
+                                result.instagram_url = str(meta["content"])
 
-            result.social_count = sum(1 for v in [
-                result.facebook_url, result.instagram_url,
-                result.linkedin_url, result.tiktok_url,
-                result.twitter_url, result.youtube_url,
-            ] if v)
+            result.social_count = sum(
+                1
+                for v in [
+                    result.facebook_url,
+                    result.instagram_url,
+                    result.linkedin_url,
+                    result.tiktok_url,
+                    result.twitter_url,
+                    result.youtube_url,
+                ]
+                if v
+            )
             result.has_social_links = result.social_count > 0
 
         except Exception as e:

@@ -40,7 +40,9 @@ class ForbiddenError(AppError):
 
 
 class ValidationError(AppError):
-    def __init__(self, message: str = "Validation failed", detail: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, message: str = "Validation failed", detail: dict[str, Any] | None = None
+    ) -> None:
         super().__init__(message=message, status_code=422, detail=detail)
 
 

@@ -2,20 +2,19 @@
 Discovery orchestrator — the main pipeline that ties together
 geocoding, intent parsing, multi-source scraping, and deduplication.
 """
+
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.application.discovery.dto import DiscoverySearchRequest, DiscoverySearchResponse
 from src.core.events import DomainEvent, get_event_bus
 from src.domain.company.models import Company, CompanySource
-from src.domain.company.repository import CompanyRepository
 from src.infrastructure.database.repositories.company_repo import SQLAlchemyCompanyRepository
 from src.infrastructure.scraping.deduplication import get_deduplicator
 from src.infrastructure.scraping.engine import BrowserPool, ScrapeResult, get_browser_pool
@@ -25,10 +24,16 @@ from src.infrastructure.scraping.plugins.base import ScraperConfig
 from src.infrastructure.scraping.plugins.registry import get_plugin_registry
 from src.infrastructure.scraping.rate_limiter import get_rate_limiter_registry
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from src.domain.company.repository import CompanyRepository
+
 logger = structlog.get_logger()
 
 
 # --- Domain Events ---
+
 
 class DiscoveryStarted(DomainEvent):
     search_id: UUID = uuid4()
@@ -71,12 +76,10 @@ class DiscoveryOrchestrator:
         self._browser_pool = get_browser_pool()
         self._event_bus = get_event_bus()
 
-    async def execute(
-        self, request: DiscoverySearchRequest
-    ) -> DiscoverySearchResponse:
+    async def execute(self, request: DiscoverySearchRequest) -> DiscoverySearchResponse:
         """Execute the full discovery pipeline."""
         search_id = uuid4()
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
 
         logger.info(
             "discovery_started",
@@ -107,9 +110,7 @@ class DiscoveryOrchestrator:
             self._deduplicator.add_existing_companies(existing)
 
             # Step 5: Fan out to plugins
-            all_results = await self._run_plugins(
-                sources, request, geocode_result, search_rules
-            )
+            all_results = await self._run_plugins(sources, request, geocode_result, search_rules)
 
             # Step 6: Deduplicate
             unique_results = self._deduplicator.deduplicate(all_results)
@@ -117,7 +118,7 @@ class DiscoveryOrchestrator:
             # Step 7: Save to database
             new_count = await self._save_companies(unique_results)
 
-            completed_at = datetime.now(timezone.utc)
+            completed_at = datetime.now(UTC)
             logger.info(
                 "discovery_completed",
                 search_id=str(search_id),
@@ -158,7 +159,7 @@ class DiscoveryOrchestrator:
     def _select_sources(
         self,
         request: DiscoverySearchRequest,
-        search_rules: Any,
+        search_rules: Any,  # noqa: ARG002
     ) -> list[str]:
         """Determine which sources to use."""
         if request.sources:
@@ -176,9 +177,7 @@ class DiscoveryOrchestrator:
 
     async def _load_existing_companies(self) -> list[dict[str, Any]]:
         """Load existing companies for deduplication."""
-        companies, _ = await self._company_repo.list_by_tenant(
-            self._tenant_id, limit=10000
-        )
+        companies, _ = await self._company_repo.list_by_tenant(self._tenant_id, limit=10000)
         return [
             {
                 "id": c.id,
@@ -273,7 +272,13 @@ class DiscoveryOrchestrator:
                 existing = await self._company_repo.get_by_domain(self._tenant_id, domain)
                 if existing:
                     # Update existing company
-                    for field in ["phone", "email", "address", "google_rating", "google_review_count"]:
+                    for field in [
+                        "phone",
+                        "email",
+                        "address",
+                        "google_rating",
+                        "google_review_count",
+                    ]:
                         if data.get(field) and not getattr(existing, field, None):
                             setattr(existing, field, data[field])
                     continue
@@ -311,6 +316,7 @@ class DiscoveryOrchestrator:
                 raw_data=result.raw_data,
                 confidence=result.confidence,
             )
+            self._session.add(source)
             await self._session.flush()
 
             new_count += 1

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime  # noqa: TC003
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base
@@ -19,7 +20,9 @@ class Campaign(Base):
         PG_UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    type: Mapped[str] = mapped_column(String(50), nullable=False)  # email, whatsapp, linkedin, multi
+    type: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # email, whatsapp, linkedin, multi
     status: Mapped[str] = mapped_column(String(50), default="draft", index=True)
     subject: Mapped[str | None] = mapped_column(String(500))
     template_id: Mapped[UUID | None] = mapped_column(PG_UUID(as_uuid=True))

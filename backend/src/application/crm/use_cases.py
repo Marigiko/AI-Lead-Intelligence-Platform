@@ -1,26 +1,30 @@
 """
 CRM application use cases.
 """
+
 from __future__ import annotations
 
-from datetime import date
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.deal.models import Activity, Deal, PipelineStage
-from src.domain.deal.repository import (
-    ActivityRepository,
-    DealRepository,
-    PipelineStageRepository,
-)
 from src.infrastructure.database.repositories.deal_repo import (
     SQLAlchemyActivityRepository,
     SQLAlchemyDealRepository,
     SQLAlchemyPipelineStageRepository,
 )
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from src.domain.deal.repository import (
+        ActivityRepository,
+        DealRepository,
+        PipelineStageRepository,
+    )
 
 logger = structlog.get_logger()
 
@@ -56,46 +60,50 @@ class CRMUseCases:
                 await self._stage_repo.create(stage)
             await self._session.commit()
 
-    async def get_pipeline(self) -> dict:
+    async def get_pipeline(self) -> dict[str, Any]:
         """Get full pipeline view with stages and deals."""
         await self.ensure_default_stages()
 
         stages = await self._stage_repo.list_by_tenant(self._tenant_id)
-        pipeline = await self._deal_repo.get_pipeline_view(self._tenant_id)
+        pipeline: dict[str, list[Deal]] = await self._deal_repo.get_pipeline_view(self._tenant_id)
 
-        stage_views = []
+        stage_views: list[dict[str, Any]] = []
         for stage in stages:
             deals_in_stage = pipeline.get(stage.name, [])
-            stage_views.append({
-                "id": str(stage.id),
-                "name": stage.name,
-                "order": stage.order,
-                "probability": stage.probability,
-                "color": stage.color,
-                "is_won": stage.is_won,
-                "is_lost": stage.is_lost,
-                "deal_count": len(deals_in_stage),
-                "total_value": sum(d.value or 0 for d in deals_in_stage),
-                "deals": [
-                    {
-                        "id": str(d.id),
-                        "title": d.title,
-                        "value": d.value,
-                        "currency": d.currency,
-                        "probability": d.probability,
-                        "company_id": str(d.company_id) if d.company_id else None,
-                        "expected_close_date": str(d.expected_close_date) if d.expected_close_date else None,
-                        "created_at": str(d.created_at),
-                    }
-                    for d in deals_in_stage
-                ],
-            })
+            stage_views.append(
+                {
+                    "id": str(stage.id),
+                    "name": stage.name,
+                    "order": stage.order,
+                    "probability": stage.probability,
+                    "color": stage.color,
+                    "is_won": stage.is_won,
+                    "is_lost": stage.is_lost,
+                    "deal_count": len(deals_in_stage),
+                    "total_value": sum(d.value or 0 for d in deals_in_stage),
+                    "deals": [
+                        {
+                            "id": str(d.id),
+                            "title": d.title,
+                            "value": d.value,
+                            "currency": d.currency,
+                            "probability": d.probability,
+                            "company_id": str(d.company_id) if d.company_id else None,
+                            "expected_close_date": str(d.expected_close_date)
+                            if d.expected_close_date
+                            else None,
+                            "created_at": str(d.created_at),
+                        }
+                        for d in deals_in_stage
+                    ],
+                }
+            )
 
-        stats = await self._deal_repo.get_pipeline_stats(self._tenant_id)
+        stats: dict[str, Any] = await self._deal_repo.get_pipeline_stats(self._tenant_id)
 
         return {"stages": stage_views, "stats": stats}
 
-    async def create_deal(self, data: dict) -> dict:
+    async def create_deal(self, data: dict[str, Any]) -> dict[str, Any]:
         """Create a new deal."""
         deal = Deal(
             tenant_id=self._tenant_id,
@@ -133,7 +141,7 @@ class CRMUseCases:
             "stage": deal.stage,
         }
 
-    async def update_deal(self, deal_id: UUID, data: dict) -> dict:
+    async def update_deal(self, deal_id: UUID, data: dict[str, Any]) -> dict[str, Any]:
         """Update a deal."""
         deal = await self._deal_repo.get_by_id(deal_id)
         if not deal or deal.tenant_id != self._tenant_id:
@@ -141,7 +149,16 @@ class CRMUseCases:
 
         old_stage = deal.stage
 
-        for field in ["title", "value", "currency", "probability", "notes", "tags", "services", "lost_reason"]:
+        for field in [
+            "title",
+            "value",
+            "currency",
+            "probability",
+            "notes",
+            "tags",
+            "services",
+            "lost_reason",
+        ]:
             if field in data:
                 setattr(deal, field, data[field])
         if "stage" in data:
@@ -165,11 +182,11 @@ class CRMUseCases:
         await self._session.commit()
         return {"id": str(deal.id), "stage": deal.stage}
 
-    async def move_deal(self, deal_id: UUID, new_stage: str) -> dict:
+    async def move_deal(self, deal_id: UUID, new_stage: str) -> dict[str, Any]:
         """Move deal to a new stage (Kanban drag & drop)."""
         return await self.update_deal(deal_id, {"stage": new_stage})
 
-    async def add_note(self, deal_id: UUID, content: str) -> dict:
+    async def add_note(self, deal_id: UUID, content: str) -> dict[str, Any]:
         """Add a note to a deal."""
         deal = await self._deal_repo.get_by_id(deal_id)
         if not deal or deal.tenant_id != self._tenant_id:
@@ -188,7 +205,7 @@ class CRMUseCases:
 
         return {"id": str(activity.id), "type": "note"}
 
-    async def get_activity_timeline(self, deal_id: UUID) -> list[dict]:
+    async def get_activity_timeline(self, deal_id: UUID) -> list[dict[str, Any]]:
         """Get activity timeline for a deal."""
         activities = await self._activity_repo.list_by_deal(deal_id)
         return [
@@ -202,7 +219,7 @@ class CRMUseCases:
             for a in activities
         ]
 
-    async def get_recent_activity(self, limit: int = 20) -> list[dict]:
+    async def get_recent_activity(self, limit: int = 20) -> list[dict[str, Any]]:
         """Get recent activity across all deals."""
         activities = await self._activity_repo.list_by_tenant(self._tenant_id, limit=limit)
         return [
@@ -217,6 +234,6 @@ class CRMUseCases:
             for a in activities
         ]
 
-    async def get_stats(self) -> dict:
+    async def get_stats(self) -> dict[str, Any]:
         """Get CRM statistics."""
         return await self._deal_repo.get_pipeline_stats(self._tenant_id)

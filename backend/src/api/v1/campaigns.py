@@ -1,27 +1,33 @@
 """
 Campaigns API routes.
 """
+
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from src.api.dependencies import CurrentUser, DBSession
 from src.application.outreach.use_cases import OutreachUseCases
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from src.api.dependencies import CurrentUser, DBSession
 
 router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
 
 
 # --- DTOs ---
 
+
 class CreateCampaignRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     type: str = Field(default="email", pattern="^(email|whatsapp|linkedin|multi)$")
     subject: str = ""
     ai_prompt: str = ""
-    settings: dict = {}
+    settings: dict[str, str] = Field(default_factory=dict)
 
 
 class AddLeadsRequest(BaseModel):
@@ -40,7 +46,7 @@ class CampaignResponse(BaseModel):
     type: str
     status: str
     subject: str | None
-    stats: dict
+    stats: dict[str, int]
     created_at: str
 
 
@@ -59,20 +65,31 @@ class GeneratedMessageResponse(BaseModel):
 
 # --- Routes ---
 
+
 @router.get("", response_model=CampaignListResponse)
 async def list_campaigns(
     user: CurrentUser,
     session: DBSession,
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-):
+) -> CampaignListResponse:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = OutreachUseCases(session, user.tenant_id)
     items, total = await use_cases.list_campaigns(offset=offset, limit=limit)
     return CampaignListResponse(
-        items=[CampaignResponse(
-            id=c.id, name=c.name, type=c.type, status=c.status,
-            subject=c.subject, stats=c.stats, created_at=str(c.created_at),
-        ) for c in items],
+        items=[
+            CampaignResponse(
+                id=c.id,
+                name=c.name,
+                type=c.type,
+                status=c.status,
+                subject=c.subject,
+                stats=c.stats,
+                created_at=str(c.created_at),
+            )
+            for c in items
+        ],
         total=total,
     )
 
@@ -82,16 +99,29 @@ async def create_campaign(
     data: CreateCampaignRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> CampaignResponse:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = OutreachUseCases(session, user.tenant_id)
     from src.application.outreach.dto import CreateCampaignRequest as Req
-    result = await use_cases.create_campaign(Req(
-        name=data.name, type=data.type, subject=data.subject,
-        ai_prompt=data.ai_prompt, settings=data.settings,
-    ))
+
+    result = await use_cases.create_campaign(
+        Req(
+            name=data.name,
+            type=data.type,
+            subject=data.subject,
+            ai_prompt=data.ai_prompt,
+            settings=data.settings,
+        )
+    )
     return CampaignResponse(
-        id=result.id, name=result.name, type=result.type, status=result.status,
-        subject=result.subject, stats=result.stats, created_at=str(result.created_at),
+        id=result.id,
+        name=result.name,
+        type=result.type,
+        status=result.status,
+        subject=result.subject,
+        stats=result.stats,
+        created_at=str(result.created_at),
     )
 
 
@@ -101,7 +131,9 @@ async def add_leads(
     data: AddLeadsRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, object]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = OutreachUseCases(session, user.tenant_id)
     count = await use_cases.add_leads_to_campaign(campaign_id, data.company_ids)
     return {"added": count, "campaign_id": str(campaign_id)}
@@ -113,7 +145,9 @@ async def generate_messages(
     data: GenerateMessagesRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, object]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = OutreachUseCases(session, user.tenant_id)
     messages = await use_cases.generate_messages(
         campaign_id,
@@ -127,8 +161,11 @@ async def generate_messages(
         "generated": len(messages),
         "messages": [
             GeneratedMessageResponse(
-                subject=m.subject, body=m.body, channel=m.channel,
-                company_id=m.company_id, personalization_notes=m.personalization_notes,
+                subject=m.subject,
+                body=m.body,
+                channel=m.channel,
+                company_id=m.company_id,
+                personalization_notes=m.personalization_notes,
             )
             for m in messages
         ],
@@ -140,7 +177,9 @@ async def send_campaign(
     campaign_id: UUID,
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, object]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = OutreachUseCases(session, user.tenant_id)
     return await use_cases.send_campaign(campaign_id)
 
@@ -150,6 +189,8 @@ async def get_stats(
     campaign_id: UUID,
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, object]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = OutreachUseCases(session, user.tenant_id)
     return await use_cases.get_campaign_stats(campaign_id)

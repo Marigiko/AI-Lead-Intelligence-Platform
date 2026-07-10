@@ -21,23 +21,25 @@ class Settings(BaseSettings):
     api_url: str = "http://localhost:8000"
     environment: Literal["development", "staging", "production"] = "development"
     debug: bool = True
-    secret_key: str = "change-me-in-production"
+    secret_key: str = "change-me-in-production"  # noqa: S105
 
     # Database
     database_url: PostgresDsn = Field(
-        default="postgresql+asyncpg://leadplatform:leadplatform@localhost:5432/leadplatform",
+        default_factory=lambda: (
+            "postgresql+asyncpg://leadplatform:leadplatform@localhost:5432/leadplatform"
+        ),  # type: ignore[assignment]
         description="Async PostgreSQL connection string",
     )
     database_echo: bool = False
 
     # Redis
-    redis_url: RedisDsn = Field(default="redis://localhost:6379/0")
+    redis_url: RedisDsn = Field(default_factory=lambda: "redis://localhost:6379/0")  # type: ignore[assignment]
 
     # Elasticsearch
     elasticsearch_url: str = "http://localhost:9200"
 
     # Auth — JWT
-    jwt_secret_key: str = "change-me-in-production"
+    jwt_secret_key: str = "change-me-in-production"  # noqa: S105
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 30
     jwt_refresh_token_expire_days: int = 7

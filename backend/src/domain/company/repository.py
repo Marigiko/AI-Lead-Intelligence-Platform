@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
-from src.domain.company.models import Company, CompanySource
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from src.domain.company.models import Company, CompanySource
 
 
 class CompanyRepository(ABC):
@@ -36,9 +38,7 @@ class CompanyRepository(ABC):
     ) -> tuple[list[Company], int]: ...
 
     @abstractmethod
-    async def search(
-        self, tenant_id: UUID, query: str, *, limit: int = 20
-    ) -> list[Company]: ...
+    async def search(self, tenant_id: UUID, query: str, *, limit: int = 20) -> list[Company]: ...
 
     @abstractmethod
     async def find_duplicates(

@@ -1,14 +1,19 @@
 """
 Security and monitoring middleware.
 """
+
 from __future__ import annotations
 
 import time
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 import structlog
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+
+if TYPE_CHECKING:
+    from starlette.types import ASGIApp
 
 logger = structlog.get_logger()
 
@@ -16,7 +21,7 @@ logger = structlog.get_logger()
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Simple in-memory rate limiter per IP."""
 
-    def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
+    def __init__(self, app: ASGIApp, max_requests: int = 100, window_seconds: int = 60):
         super().__init__(app)
         self.max_requests = max_requests
         self.window_seconds = window_seconds
@@ -28,8 +33,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Clean old entries
         self._requests[client_ip] = [
-            t for t in self._requests[client_ip]
-            if now - t < self.window_seconds
+            t for t in self._requests[client_ip] if now - t < self.window_seconds
         ]
 
         if len(self._requests[client_ip]) >= self.max_requests:

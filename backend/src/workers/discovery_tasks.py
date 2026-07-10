@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import structlog
+
 from src.workers.celery_app import celery_app
 
 logger = structlog.get_logger()
 
 
-@celery_app.task(name="src.workers.discovery_tasks.run_discovery_search")
+@celery_app.task(name="src.workers.discovery_tasks.run_discovery_search")  # type: ignore[reportUntypedFunctionDecorator]
 def run_discovery_search(
     tenant_id: str,
     location: str,
@@ -16,15 +18,16 @@ def run_discovery_search(
     radius_km: int = 50,
     max_results: int = 100,
     sources: list[str] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Execute a full discovery search as a background task."""
     logger.info("discovery_task_started", tenant_id=tenant_id, location=location)
 
     async def _run():
         from uuid import UUID
-        from src.core.database import get_session_factory
+
         from src.application.discovery.dto import DiscoverySearchRequest
         from src.application.discovery.orchestrator import DiscoveryOrchestrator
+        from src.core.database import get_session_factory
 
         factory = get_session_factory()
         async with factory() as session:
@@ -48,7 +51,7 @@ def run_discovery_search(
     return asyncio.run(_run())
 
 
-@celery_app.task(name="src.workers.discovery_tasks.cleanup_stale_jobs")
+@celery_app.task(name="src.workers.discovery_tasks.cleanup_stale_jobs")  # type: ignore[reportUntypedFunctionDecorator]
 def cleanup_stale_jobs() -> None:
     """Clean up scraper jobs that have been running too long."""
     logger.info("cleanup_stale_jobs")

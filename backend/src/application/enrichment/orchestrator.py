@@ -1,29 +1,35 @@
 """
 Enrichment orchestrator — runs all enrichment tasks for a company.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.events import DomainEvent, get_event_bus
-from src.domain.company.models import Company
-from src.domain.company.repository import CompanyRepository
 from src.infrastructure.ai.gateway import get_ai_gateway
 from src.infrastructure.database.repositories.company_repo import SQLAlchemyCompanyRepository
 from src.infrastructure.scraping.seo_analyzer import get_seo_analyzer
 from src.infrastructure.scraping.social_detector import get_social_detector
 from src.infrastructure.scraping.tech_detector import get_tech_detector
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from src.domain.company.repository import CompanyRepository
+
 logger = structlog.get_logger()
 
 
+@dataclass(frozen=True)
 class CompanyEnriched(DomainEvent):
-    company_id: UUID = uuid4()
-    fields_updated: list[str] = []
+    company_id: UUID = field(default_factory=uuid4)
+    fields_updated: list[str] = field(default_factory=list[str])
 
 
 class EnrichmentOrchestrator:
@@ -39,7 +45,7 @@ class EnrichmentOrchestrator:
         self._ai_gateway = get_ai_gateway()
         self._event_bus = get_event_bus()
 
-    async def enrich_company(self, company_id: UUID) -> dict:
+    async def enrich_company(self, company_id: UUID) -> dict[str, Any]:
         """Run full enrichment pipeline for a single company."""
         company = await self._company_repo.get_by_id(company_id)
         if not company or company.tenant_id != self._tenant_id:
@@ -94,15 +100,17 @@ class EnrichmentOrchestrator:
             logger.error("social_detection_failed", company_id=str(company_id), error=str(e))
 
         # Update timestamp
-        company.last_enriched_at = datetime.now(timezone.utc)
+        company.last_enriched_at = datetime.now(UTC)
         await self._company_repo.update(company)
 
         # Emit event
-        await self._event_bus.publish(CompanyEnriched(
-            tenant_id=self._tenant_id,
-            company_id=company_id,
-            fields_updated=updated_fields,
-        ))
+        await self._event_bus.publish(
+            CompanyEnriched(
+                tenant_id=self._tenant_id,
+                company_id=company_id,
+                fields_updated=updated_fields,
+            )
+        )
 
         await self._session.commit()
 
@@ -119,10 +127,10 @@ class EnrichmentOrchestrator:
             "seo_score": company.seo_score,
         }
 
-    async def analyze_and_score(self, company_id: UUID) -> dict:
+    async def analyze_and_score(self, company_id: UUID) -> dict[str, Any]:
         """Run enrichment + AI analysis + scoring."""
         # First enrich
-        enrich_result = await self.enrich_company(company_id)
+        enrich_result: dict[str, Any] = await self.enrich_company(company_id)
         if "error" in enrich_result:
             return enrich_result
 
@@ -146,10 +154,22 @@ class EnrichmentOrchestrator:
                     "has_ssl": company.has_ssl,
                     "has_chatbot": company.has_chatbot,
                     "has_ecommerce": company.has_ecommerce,
-                } if company.tech_stack else None,
-                social_data={"social_count": sum([
-                    1 for u in [company.facebook_url, company.instagram_url, company.linkedin_url] if u
-                ])},
+                }
+                if company.tech_stack
+                else None,
+                social_data={
+                    "social_count": sum(
+                        [
+                            1
+                            for u in [
+                                company.facebook_url,
+                                company.instagram_url,
+                                company.linkedin_url,
+                            ]
+                            if u
+                        ]
+                    )
+                },
             )
 
             # Update company with AI results
@@ -158,7 +178,7 @@ class EnrichmentOrchestrator:
             company.opportunity_analysis = ai_result.get("analysis", "")
             company.recommended_services = ai_result.get("recommended_services", [])
             company.estimated_deal_value = ai_result.get("estimated_deal_value", 0)
-            company.last_analyzed_at = datetime.now(timezone.utc)
+            company.last_analyzed_at = datetime.now(UTC)
             company.status = "scored"
 
             await self._company_repo.update(company)
@@ -180,10 +200,10 @@ class EnrichmentOrchestrator:
                 "error": f"AI analysis failed: {str(e)[:100]}",
             }
 
-    async def batch_enrich(self, company_ids: list[UUID]) -> list[dict]:
+    async def batch_enrich(self, company_ids: list[UUID]) -> list[dict[str, Any]]:
         """Enrich multiple companies sequentially."""
-        results = []
+        results: list[dict[str, Any]] = []
         for cid in company_ids:
-            result = await self.enrich_company(cid)
+            result: dict[str, Any] = await self.enrich_company(cid)
             results.append(result)
         return results

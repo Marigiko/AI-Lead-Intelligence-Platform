@@ -9,7 +9,7 @@ def main():
     settings = get_settings()
     uvicorn.run(
         "src.api.app:app",
-        host="0.0.0.0",
+        host="0.0.0.0",  # noqa: S104
         port=8000,
         reload=settings.debug,
         log_level="info",

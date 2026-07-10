@@ -1,12 +1,14 @@
 """
 Scraping engine core — manages browser pool, job execution, and lifecycle.
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
+from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -18,7 +20,7 @@ from src.core.config import get_settings
 logger = structlog.get_logger()
 
 
-class JobStatus(str, Enum):
+class JobStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -31,20 +33,20 @@ class ScrapeJob:
     id: UUID = field(default_factory=uuid4)
     tenant_id: UUID | None = None
     source: str = ""
-    search_params: dict[str, Any] = field(default_factory=dict)
+    search_params: dict[str, Any] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
     status: JobStatus = JobStatus.PENDING
     results_count: int = 0
     error_message: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass
 class ScrapeResult:
     source: str
     raw_data: dict[str, Any]
-    normalized_data: dict[str, Any] = field(default_factory=dict)
+    normalized_data: dict[str, Any] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
     confidence: float = 0.0
     source_url: str = ""
     source_id: str = ""
@@ -81,10 +83,8 @@ class BrowserPool:
     async def stop(self) -> None:
         async with self._lock:
             for ctx in self._contexts:
-                try:
+                with contextlib.suppress(Exception):
                     await ctx.close()
-                except Exception:
-                    pass
             self._contexts.clear()
 
             if self._browser:
@@ -109,10 +109,8 @@ class BrowserPool:
         async with self._lock:
             if context in self._contexts:
                 self._contexts.remove(context)
-        try:
+        with contextlib.suppress(Exception):
             await context.close()
-        except Exception:
-            pass
         self._available.release()
 
     async def _create_context(self) -> BrowserContext:

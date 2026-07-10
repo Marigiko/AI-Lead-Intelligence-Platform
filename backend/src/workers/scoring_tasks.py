@@ -1,26 +1,32 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import structlog
+
 from src.workers.celery_app import celery_app
 
 logger = structlog.get_logger()
 
 
-@celery_app.task(name="src.workers.scoring_tasks.score_company")
-def score_company(company_id: str) -> dict:
+@celery_app.task(name="src.workers.scoring_tasks.score_company")  # type: ignore[reportUntypedFunctionDecorator]
+def score_company(company_id: str) -> dict[str, Any]:
     """Calculate opportunity score for a company."""
     logger.info("scoring_started", company_id=company_id)
 
     async def _run():
         from uuid import UUID
-        from src.core.database import get_session_factory
+
         from src.application.enrichment.orchestrator import EnrichmentOrchestrator
+        from src.core.database import get_session_factory
 
         factory = get_session_factory()
         async with factory() as session:
-            from src.infrastructure.database.repositories.company_repo import SQLAlchemyCompanyRepository
+            from src.infrastructure.database.repositories.company_repo import (
+                SQLAlchemyCompanyRepository,
+            )
+
             company_repo = SQLAlchemyCompanyRepository(session)
             company = await company_repo.get_by_id(UUID(company_id))
             if not company:

@@ -1,20 +1,27 @@
 """
 Conversations (SDR) API routes.
 """
+
 from __future__ import annotations
 
-from uuid import UUID
+import contextlib
+from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from src.api.dependencies import CurrentUser, DBSession
 from src.application.sdr.use_cases import SDRUseCases
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from src.api.dependencies import CurrentUser, DBSession
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
 
 
 # --- DTOs ---
+
 
 class CreateConversationRequest(BaseModel):
     company_id: UUID
@@ -68,6 +75,7 @@ class HandleMessageResponse(BaseModel):
 
 # --- Routes ---
 
+
 @router.get("", response_model=ConversationListResponse)
 async def list_conversations(
     user: CurrentUser,
@@ -75,7 +83,9 @@ async def list_conversations(
     status: str | None = None,
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-):
+) -> ConversationListResponse:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = SDRUseCases(session, user.tenant_id)
     items, total = await use_cases.list_conversations(status=status, offset=offset, limit=limit)
     return ConversationListResponse(
@@ -89,7 +99,9 @@ async def create_conversation(
     data: CreateConversationRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, Any]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = SDRUseCases(session, user.tenant_id)
     return await use_cases.create_conversation(
         company_id=data.company_id,
@@ -104,7 +116,9 @@ async def get_messages(
     conversation_id: UUID,
     user: CurrentUser,
     session: DBSession,
-):
+) -> list[MessageResponse]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = SDRUseCases(session, user.tenant_id)
     messages = await use_cases.get_conversation_messages(conversation_id)
     return [MessageResponse(**m) for m in messages]
@@ -116,8 +130,10 @@ async def send_message(
     data: SendMessageRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> HandleMessageResponse:
     """Send a message and get AI response."""
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = SDRUseCases(session, user.tenant_id)
     result = await use_cases.handle_incoming_message(
         conversation_id=conversation_id,
@@ -133,13 +149,16 @@ async def human_takeover(
     data: SendMessageRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, Any]:
     """Human takes over the conversation."""
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = SDRUseCases(session, user.tenant_id)
     return await use_cases.human_intervention(conversation_id, data.message)
 
 
 # --- WebSocket for real-time updates ---
+
 
 class ConnectionManager:
     def __init__(self):
@@ -155,13 +174,11 @@ class ConnectionManager:
         if conversation_id in self.active_connections:
             self.active_connections[conversation_id].remove(websocket)
 
-    async def broadcast(self, conversation_id: str, message: dict):
+    async def broadcast(self, conversation_id: str, message: dict[str, Any]):
         if conversation_id in self.active_connections:
             for connection in self.active_connections[conversation_id]:
-                try:
+                with contextlib.suppress(Exception):
                     await connection.send_json(message)
-                except Exception:
-                    pass
 
 
 manager = ConnectionManager()

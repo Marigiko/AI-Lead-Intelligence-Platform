@@ -1,10 +1,10 @@
 """
 Proxy rotation and management.
 """
+
 from __future__ import annotations
 
-import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import structlog
 
@@ -42,6 +42,7 @@ class ProxyManager:
     def add_proxies_from_url(self, proxy_url: str) -> None:
         """Parse proxy URL (http://user:pass@host:port) and add to pool."""
         from urllib.parse import urlparse
+
         parsed = urlparse(proxy_url)
         self._proxies.append(
             ProxyConfig(
@@ -59,10 +60,7 @@ class ProxyManager:
             return None
 
         # Filter out failed proxies (allow retry after 5 failures = cooldown)
-        available = [
-            p for p in self._proxies
-            if self._failed.get(p.url, 0) < 5
-        ]
+        available = [p for p in self._proxies if self._failed.get(p.url, 0) < 5]
         if not available:
             # Reset failures and try again
             self._failed.clear()
@@ -96,7 +94,9 @@ def get_proxy_manager() -> ProxyManager:
     global _manager
     if _manager is None:
         _manager = ProxyManager()
-        settings_proxy = __import__("src.core.config", fromlist=["get_settings"]).get_settings().proxy_url
+        settings_proxy = (
+            __import__("src.core.config", fromlist=["get_settings"]).get_settings().proxy_url
+        )
         if settings_proxy:
             _manager.add_proxies_from_url(settings_proxy)
     return _manager

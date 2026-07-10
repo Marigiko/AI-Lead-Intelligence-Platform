@@ -1,15 +1,20 @@
 """
 Discovery application use cases.
 """
+
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.application.discovery.dto import DiscoverySearchRequest, DiscoverySearchResponse
 from src.application.discovery.orchestrator import DiscoveryOrchestrator
 from src.infrastructure.scraping.intent_parser import get_intent_parser
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from src.application.discovery.dto import DiscoverySearchRequest, DiscoverySearchResponse
 
 
 class DiscoveryUseCases:
@@ -22,7 +27,7 @@ class DiscoveryUseCases:
         orchestrator = DiscoveryOrchestrator(self._session, self._tenant_id)
         return await orchestrator.execute(request)
 
-    def parse_intent(self, intent_text: str) -> dict:
+    def parse_intent(self, intent_text: str) -> dict[str, Any]:
         """Parse natural language intent into structured rules (without executing)."""
         parser = get_intent_parser()
         rules = parser.parse(intent_text)

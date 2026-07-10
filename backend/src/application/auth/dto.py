@@ -1,16 +1,21 @@
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, EmailStr, Field
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=255)
-    company_name: str = Field(min_length=1, max_length=255, description="Name for the initial tenant")
+    company_name: str = Field(
+        min_length=1, max_length=255, description="Name for the initial tenant"
+    )
 
 
 class LoginRequest(BaseModel):
@@ -27,7 +32,7 @@ class OAuthLoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
-    token_type: str = "bearer"
+    token_type: str = "bearer"  # noqa: S105
     expires_in: int
 
 

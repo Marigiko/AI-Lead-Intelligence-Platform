@@ -1,13 +1,17 @@
 """
 Audit logging — tracks all important actions.
 """
+
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = structlog.get_logger()
 
@@ -28,10 +32,14 @@ async def log_audit(
 
     try:
         await session.execute(
-            text("""
-                INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, old_values, new_values, ip_address)
-                VALUES (:tenant_id, :user_id, :action, :entity_type, :entity_id, :old_values, :new_values, :ip_address)
-            """),
+            text(
+                "INSERT INTO audit_logs ("
+                "tenant_id, user_id, action, entity_type, entity_id, "
+                "old_values, new_values, ip_address"
+                ") VALUES ("
+                ":tenant_id, :user_id, :action, :entity_type, :entity_id, "
+                ":old_values, :new_values, :ip_address)"
+            ),
             {
                 "tenant_id": str(tenant_id),
                 "user_id": str(user_id) if user_id else None,

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING
 
-from src.domain.conversation.models import Conversation, ConversationMessage
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from src.domain.conversation.models import Conversation, ConversationMessage
 
 
 class ConversationRepository(ABC):

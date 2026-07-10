@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import CurrentUser, DBSession
-from src.core.database import get_db
-from src.domain.company.models import Company
-from src.domain.company.repository import CompanyRepository
 from src.infrastructure.database.repositories.company_repo import SQLAlchemyCompanyRepository
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from src.api.dependencies import CurrentUser, DBSession
+    from src.domain.company.repository import CompanyRepository
 
 router = APIRouter(prefix="/companies", tags=["Companies"])
 
@@ -21,6 +23,7 @@ def _get_repo(session: AsyncSession) -> CompanyRepository:
 
 
 # --- DTOs ---
+
 
 class CompanyResponse(BaseModel):
     id: UUID
@@ -71,13 +74,14 @@ class CompanyDetailResponse(CompanyResponse):
     seo_score: int | None
     page_speed_mobile: int | None
     page_speed_desktop: int | None
-    opportunity_breakdown: dict
+    opportunity_breakdown: dict[str, Any]
     opportunity_analysis: str | None
     recommended_services: list[str] | None
     estimated_deal_value: float | None
 
 
 # --- Routes ---
+
 
 @router.get("", response_model=CompanyListResponse)
 async def list_companies(
@@ -106,9 +110,18 @@ async def list_companies(
     if min_score is not None:
         filters["min_score"] = min_score
 
+    if user.tenant_id is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=403, detail="Invalid tenant")
+
     items, total = await repo.list_by_tenant(
-        user.tenant_id, offset=offset, limit=limit, filters=filters,
-        sort_by=sort_by, sort_order=sort_order,
+        user.tenant_id,
+        offset=offset,
+        limit=limit,
+        filters=filters,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
     return CompanyListResponse(
         items=[CompanyResponse.model_validate(c) for c in items],
@@ -128,5 +141,6 @@ async def get_company(
     company = await repo.get_by_id(company_id)
     if not company or company.tenant_id != user.tenant_id:
         from src.core.exceptions import NotFoundError
+
         raise NotFoundError("Company", str(company_id))
     return CompanyDetailResponse.model_validate(company)

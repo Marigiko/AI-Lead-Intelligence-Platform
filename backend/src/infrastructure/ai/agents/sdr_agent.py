@@ -1,11 +1,12 @@
 """
 SDR Agent — autonomous conversation handler with state machine.
 """
+
 from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 import structlog
@@ -15,7 +16,7 @@ from src.infrastructure.ai.gateway import get_ai_gateway
 logger = structlog.get_logger()
 
 
-class ConversationState(str, Enum):
+class ConversationState(StrEnum):
     NEW = "new"
     CONTACTED = "contacted"
     INTERESTED = "interested"
@@ -29,7 +30,7 @@ class ConversationState(str, Enum):
     FOLLOW_UP = "follow_up"
 
 
-class IntentType(str, Enum):
+class IntentType(StrEnum):
     INTEREST = "interest"
     OBJECTION = "objection"
     QUESTION = "question"
@@ -100,20 +101,19 @@ class SDRAgent:
     def __init__(self) -> None:
         self._ai = get_ai_gateway()
 
-    async def classify_intent(self, message: str) -> dict:
+    async def classify_intent(self, message: str) -> dict[str, Any]:
         """Classify the intent of an incoming message."""
+        system_content = (
+            "Classify the intent of this B2B sales message. "
+            "Return JSON with: "
+            "intent (interest/objection/question/meeting_request/"
+            "not_interested/out_of_office/wrong_person/unclear), "
+            "sentiment (positive/neutral/negative), "
+            "key_points (array of main points), "
+            "objection_type (if applicable: price/timing/authority/need/none)."
+        )
         messages = [
-            {
-                "role": "system",
-                "content": (
-                    "Classify the intent of this B2B sales message. "
-                    "Return JSON with: "
-                    "intent (interest/objection/question/meeting_request/not_interested/out_of_office/wrong_person/unclear), "
-                    "sentiment (positive/neutral/negative), "
-                    "key_points (array of main points), "
-                    "objection_type (if applicable: price/timing/authority/need/none)."
-                ),
-            },
+            {"role": "system", "content": system_content},
             {"role": "user", "content": message},
         ]
 
@@ -121,7 +121,12 @@ class SDRAgent:
         try:
             return json.loads(response.content)
         except json.JSONDecodeError:
-            return {"intent": "unclear", "sentiment": "neutral", "key_points": [], "objection_type": "none"}
+            return {
+                "intent": "unclear",
+                "sentiment": "neutral",
+                "key_points": [],
+                "objection_type": "none",
+            }
 
     async def generate_reply(
         self,
@@ -187,37 +192,36 @@ class SDRAgent:
                 "Suggest a meeting or demo. Offer specific value propositions.\n"
                 "Return JSON: {reply, sentiment, next_action, should_escalate, meeting_time}"
             )
-        elif intent == IntentType.OBJECTION:
+        if intent == IntentType.OBJECTION:
             return base + (
                 "The prospect has an objection. Address it empathetically. "
                 "Provide evidence, case studies, or alternative solutions. "
                 "Don't be pushy — acknowledge their concern and offer solutions.\n"
                 "Return JSON: {reply, sentiment, next_action, should_escalate}"
             )
-        elif intent == IntentType.MEETING_REQUEST:
+        if intent == IntentType.MEETING_REQUEST:
             return base + (
                 "The prospect wants to schedule a meeting! Be enthusiastic. "
                 "Suggest 2-3 time options. Ask for their preferred channel.\n"
                 "Return JSON: {reply, sentiment, next_action, should_escalate, meeting_time}"
             )
-        elif intent == IntentType.NOT_INTERESTED:
+        if intent == IntentType.NOT_INTERESTED:
             return base + (
                 "The prospect is not interested. Be respectful. "
                 "Ask if there's a better time or if they can refer someone. "
                 "Leave the door open.\n"
                 "Return JSON: {reply, sentiment, next_action, should_escalate}"
             )
-        elif intent == IntentType.QUESTION:
+        if intent == IntentType.QUESTION:
             return base + (
                 "The prospect has a question. Answer it thoroughly and professionally. "
                 "Use the answer to demonstrate expertise and build trust.\n"
                 "Return JSON: {reply, sentiment, next_action, should_escalate}"
             )
-        else:
-            return base + (
-                "Handle this message professionally. "
-                "Return JSON: {reply, sentiment, next_action, should_escalate}"
-            )
+        return base + (
+            "Handle this message professionally. "
+            "Return JSON: {reply, sentiment, next_action, should_escalate}"
+        )
 
     def _get_next_state(self, current: ConversationState, intent: IntentType) -> ConversationState:
         transitions = STATE_TRANSITIONS.get(current, {})

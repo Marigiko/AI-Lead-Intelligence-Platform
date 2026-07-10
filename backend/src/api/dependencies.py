@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID
 
 from fastapi import Depends, Header
@@ -10,11 +10,13 @@ from src.core.database import get_db
 from src.core.exceptions import ForbiddenError, UnauthorizedError
 from src.core.security import TokenPayload, decode_token
 from src.domain.user.models import User
-from src.domain.user.repository import UserRepository
 from src.infrastructure.database.repositories.user_repo import SQLAlchemyUserRepository
 
+if TYPE_CHECKING:
+    from src.domain.user.repository import UserRepository
 
-async def get_user_repo(session: AsyncSession = Depends(get_db)) -> UserRepository:
+
+async def get_user_repo(session: AsyncSession = Depends(get_db)) -> UserRepository:  # noqa: B008
     return SQLAlchemyUserRepository(session)
 
 
@@ -30,7 +32,7 @@ async def get_current_token(authorization: str = Header(...)) -> TokenPayload:
 
 async def get_current_user(
     token: Annotated[TokenPayload, Depends(get_current_token)],
-    user_repo: UserRepository = Depends(get_user_repo),
+    user_repo: UserRepository = Depends(get_user_repo),  # noqa: B008
 ) -> User:
     user = await user_repo.get_by_id(UUID(token.sub))
     if not user or not user.is_active:

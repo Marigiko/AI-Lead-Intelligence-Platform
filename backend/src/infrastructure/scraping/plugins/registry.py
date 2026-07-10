@@ -1,6 +1,7 @@
 """
 Plugin registry — auto-discovers and manages scraper plugins.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -44,7 +45,7 @@ class PluginRegistry:
         import src.infrastructure.scraping.plugins as plugins_pkg
 
         package_path = plugins_pkg.__path__
-        for importer, modname, ispkg in pkgutil.iter_modules(package_path):
+        for _importer, modname, _ispkg in pkgutil.iter_modules(package_path):
             if modname.startswith("_") or modname in ("base", "registry"):
                 continue
             try:
