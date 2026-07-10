@@ -67,6 +67,7 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     import importlib
 
     for mod_name in (
+        "src.domain.audit.models",
         "src.domain.campaign.models",
         "src.domain.company.models",
         "src.domain.contact.models",

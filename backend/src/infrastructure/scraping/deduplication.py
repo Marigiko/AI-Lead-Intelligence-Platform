@@ -10,7 +10,6 @@ import structlog
 from rapidfuzz import fuzz
 
 if TYPE_CHECKING:
-    from uuid import UUID
 
     from src.infrastructure.scraping.engine import ScrapeResult
 
@@ -61,11 +60,7 @@ class Deduplicator:
                 "city": city,
             }
 
-    def deduplicate(
-        self,
-        results: list[ScrapeResult],
-        existing_company_ids: set[UUID] | None = None,  # noqa: ARG002
-    ) -> list[ScrapeResult]:
+    def deduplicate(self, results: list[ScrapeResult]) -> list[ScrapeResult]:
         """
         Deduplicate results and merge data from multiple sources.
 
