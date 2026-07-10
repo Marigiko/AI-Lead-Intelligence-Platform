@@ -10,7 +10,6 @@ import structlog
 from rapidfuzz import fuzz
 
 if TYPE_CHECKING:
-
     from src.infrastructure.scraping.engine import ScrapeResult
 
 logger = structlog.get_logger()
