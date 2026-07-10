@@ -4,16 +4,18 @@ Email tracking endpoints — open pixel and click tracking.
 
 from __future__ import annotations
 
-import contextlib
 from datetime import UTC, datetime
 
-from fastapi import APIRouter
+import structlog
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 
 from src.core.database import get_session_factory
 from src.infrastructure.database.repositories.campaign_repo import SQLAlchemyCampaignLeadRepository
 
 router = APIRouter(prefix="/campaigns/track", tags=["Tracking"])
+
+logger = structlog.get_logger()
 
 # 1x1 transparent GIF pixel
 TRACKING_PIXEL = (
@@ -26,7 +28,7 @@ TRACKING_PIXEL = (
 @router.get("/open/{tracking_id}")
 async def track_open(tracking_id: str):
     """Track email opens via tracking pixel."""
-    with contextlib.suppress(Exception):
+    try:
         factory = get_session_factory()
         async with factory() as session:
             repo = SQLAlchemyCampaignLeadRepository(session)
@@ -36,6 +38,8 @@ async def track_open(tracking_id: str):
                 lead.status = "opened"
                 await repo.update(lead)
                 await session.commit()
+    except Exception as exc:
+        logger.warning("tracking_open_failed", tracking_id=tracking_id, error=str(exc))
 
     return Response(content=TRACKING_PIXEL, media_type="image/gif")
 
@@ -45,7 +49,7 @@ async def track_click(tracking_id: str, url: str = ""):
     """Track email link clicks."""
     from fastapi.responses import RedirectResponse
 
-    with contextlib.suppress(Exception):
+    try:
         factory = get_session_factory()
         async with factory() as session:
             repo = SQLAlchemyCampaignLeadRepository(session)
@@ -55,6 +59,8 @@ async def track_click(tracking_id: str, url: str = ""):
                 lead.status = "clicked"
                 await repo.update(lead)
                 await session.commit()
+    except Exception as exc:
+        logger.warning("tracking_click_failed", tracking_id=tracking_id, error=str(exc))
 
     return RedirectResponse(url=url or "/", status_code=302)
 
@@ -64,7 +70,7 @@ async def unsubscribe(lead_id: str):
     """Handle unsubscribe requests."""
     from uuid import UUID
 
-    with contextlib.suppress(Exception):
+    try:
         factory = get_session_factory()
         async with factory() as session:
             from src.domain.campaign.models import CampaignLead
@@ -74,5 +80,8 @@ async def unsubscribe(lead_id: str):
                 lead.unsubscribed_at = datetime.now(UTC)
                 lead.status = "unsubscribed"
                 await session.commit()
+    except Exception as exc:
+        logger.error("unsubscribe_failed", lead_id=lead_id, error=str(exc))
+        raise HTTPException(status_code=500, detail="No se pudo procesar la baja") from exc
 
     return {"message": "Te has dado de baja correctamente"}

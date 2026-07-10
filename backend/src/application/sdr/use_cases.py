@@ -212,10 +212,38 @@ class SDRUseCases:
 
     async def _generate_summary(
         self,
-        history: list[dict[str, Any]],  # noqa: ARG002
+        history: list[dict[str, Any]],
         new_message: str,
-        reply: str,  # noqa: ARG002
+        reply: str,
     ) -> str:
-        """Generate a brief conversation summary."""
-        # Simple summary from last exchange
-        return f"Last exchange: {new_message[:100]}... → AI replied about intent"
+        """Generate a brief conversation summary from context."""
+        parts: list[str] = []
+
+        if history:
+            last_exchange = history[-1]
+            role = last_exchange.get("role", "contact")
+            content = last_exchange.get("content", "")[:80]
+            parts.append(f"{'Contacto' if role == 'contact' else 'AI'}: {content}")
+
+        if new_message:
+            parts.append(f"Mensaje: {new_message[:80]}")
+
+        if reply:
+            intent = self._detect_intent_from_reply(reply)
+            parts.append(f"Respuesta AI: {intent}")
+
+        return " | ".join(parts) if parts else "Conversación iniciada"
+
+    @staticmethod
+    def _detect_intent_from_reply(reply: str) -> str:
+        """Extract high-level intent from the AI reply for summary purposes."""
+        reply_lower = reply.lower()
+        if "reunión" in reply_lower or "meeting" in reply_lower:
+            return "propuso reunión"
+        if "precio" in reply_lower or "costo" in reply_lower:
+            return "consultó precio"
+        if "interesado" in reply_lower or "interés" in reply_lower:
+            return "mostró interés"
+        if "no " in reply_lower:
+            return "sin interés"
+        return "respondió consulta"

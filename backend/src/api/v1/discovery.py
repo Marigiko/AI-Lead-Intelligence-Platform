@@ -80,10 +80,13 @@ async def search_companies(
 @router.post("/parse-intent", response_model=IntentParseResponse)
 async def parse_intent(
     data: IntentParseRequest,
-    user: CurrentUser,  # noqa: ARG001
+    user: CurrentUser,
+    session: DBSession,
 ) -> dict[str, Any]:
     """Parse natural language intent into structured search rules (preview without executing)."""
-    use_cases = DiscoveryUseCases.__new__(DiscoveryUseCases)
+    if not user.tenant_id:
+        raise HTTPException(status_code=400, detail="User must belong to a tenant")
+    use_cases = DiscoveryUseCases(session, user.tenant_id)
     return cast("dict[str, Any]", use_cases.parse_intent(data.intent))  # type: ignore[reportUnknownMemberType]
 
 
