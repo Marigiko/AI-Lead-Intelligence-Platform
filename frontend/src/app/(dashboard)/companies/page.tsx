@@ -1,82 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Building2, Search, Filter, ExternalLink, Phone, Mail } from "lucide-react";
-
-const companies = [
-  {
-    id: "1",
-    name: "Constructora Chaco SRL",
-    domain: null,
-    industry: "Construccion",
-    city: "Resistencia",
-    score: 95,
-    status: "discovered",
-  },
-  {
-    id: "2",
-    name: "Transporte Pesado del Norte",
-    domain: null,
-    industry: "Logistica",
-    city: "Fontana",
-    score: 91,
-    status: "discovered",
-  },
-  {
-    id: "3",
-    name: "Clinica Dental Sonrisa",
-    domain: null,
-    industry: "Salud",
-    city: "Corrientes",
-    score: 88,
-    status: "enriched",
-  },
-  {
-    id: "4",
-    name: "Restaurante La Parrilla del Norte",
-    domain: "laparrilladelnorte.com.ar",
-    industry: "Gastronomia",
-    city: "Resistencia",
-    score: 85,
-    status: "enriched",
-  },
-  {
-    id: "5",
-    name: "Estudio Juridico Moreno & Asoc.",
-    domain: "moreno-abogados.com.ar",
-    industry: "Legal",
-    city: "Resistencia",
-    score: 82,
-    status: "scored",
-  },
-  {
-    id: "6",
-    name: "Distribuidora El Norte",
-    domain: "distribuidoraelnorte.com",
-    industry: "Distribucion",
-    city: "Resistencia",
-    score: 78,
-    status: "enriched",
-  },
-  {
-    id: "7",
-    name: "Instituto de Educacion Secundaria",
-    domain: null,
-    industry: "Educacion",
-    city: "Resistencia",
-    score: 72,
-    status: "discovered",
-  },
-  {
-    id: "8",
-    name: "Frigorifico Chaco S.A.",
-    domain: "frigorificochaco.com.ar",
-    industry: "Alimentos",
-    city: "Resistencia",
-    score: 70,
-    status: "enriched",
-  },
-];
+import { api } from "@/lib/api-client";
+import { Company, CompanyListResponse } from "@/lib/types";
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -105,8 +32,30 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function CompaniesPage() {
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [industryFilter, setIndustryFilter] = useState("");
+
+  useEffect(() => {
+    async function fetchCompanies() {
+      try {
+        setLoading(true);
+        setError(null);
+        const params: Record<string, string> = { limit: "50" };
+        if (search) params.search = search;
+        if (industryFilter) params.industry = industryFilter;
+        const data = await api.get<CompanyListResponse>("/api/v1/companies", params);
+        setCompanies(data.items);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Error al cargar empresas");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchCompanies();
+  }, [search, industryFilter]);
 
   const filtered = companies.filter((c) => {
     if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -114,7 +63,38 @@ export default function CompaniesPage() {
     return true;
   });
 
-  const industries = [...new Set(companies.map((c) => c.industry))];
+  const industries = [...new Set(companies.map((c) => c.industry).filter(Boolean))] as string[];
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Empresas</h1>
+          <p className="text-muted-foreground">Todas las empresas descubiertas y enriquecidas</p>
+        </div>
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-16 bg-card rounded-lg border animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Empresas</h1>
+          <p className="text-muted-foreground">Todas las empresas descubiertas y enriquecidas</p>
+        </div>
+        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
+          <p className="font-medium">Error al cargar empresas</p>
+          <p className="text-sm mt-1">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -187,7 +167,7 @@ export default function CompaniesPage() {
                   {company.city}
                 </td>
                 <td className="px-4 py-3 text-center">
-                  <ScoreBadge score={company.score} />
+                  <ScoreBadge score={company.opportunity_score} />
                 </td>
                 <td className="px-4 py-3 text-center hidden sm:table-cell">
                   <StatusBadge status={company.status} />

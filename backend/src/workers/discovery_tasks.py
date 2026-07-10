@@ -54,5 +54,43 @@ def run_discovery_search(
 @celery_app.task(name="src.workers.discovery_tasks.cleanup_stale_jobs")  # type: ignore[reportUntypedFunctionDecorator]
 def cleanup_stale_jobs() -> None:
     """Clean up scraper jobs that have been running too long."""
-    logger.info("cleanup_stale_jobs")
-    # TODO: Implement stale job cleanup
+    import datetime
+    from datetime import UTC
+
+    from sqlalchemy import update
+
+    from src.core.database import get_session_factory
+    from src.domain.campaign.models import Campaign
+
+    async def _cleanup() -> None:
+        factory = get_session_factory()
+        async with factory() as session:
+            cutoff = datetime.datetime.now(UTC) - datetime.timedelta(hours=24)
+            # Reset campaigns stuck in "running" for >24h back to "draft"
+            stmt = (
+                update(Campaign)
+                .where(
+                    Campaign.status == "running",
+                    Campaign.updated_at < cutoff,  # type: ignore[union-attr]
+                )
+                .values(status="draft")
+            )
+            result = await session.execute(stmt)
+            await session.commit()
+            rowcount = getattr(result, "rowcount", 0)
+            if rowcount > 0:
+                logger.info("cleanup_reset_campaigns", count=rowcount)
+
+        await _cleanup_browser_pool()
+
+    asyncio.run(_cleanup())
+
+
+async def _cleanup_browser_pool() -> None:
+    """Stop the browser pool to release stale contexts."""
+    from src.infrastructure.scraping.engine import get_browser_pool
+
+    pool = get_browser_pool()
+    if pool.active_count > 0:
+        logger.info("cleanup_browser_pool", active_contexts=pool.active_count)
+        await pool.stop()

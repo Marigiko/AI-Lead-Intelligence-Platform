@@ -13,16 +13,48 @@ logger = structlog.get_logger()
 @celery_app.task(name="src.workers.sdr_tasks.check_pending_conversations")  # type: ignore[reportUntypedFunctionDecorator]
 def check_pending_conversations() -> None:
     """Check for pending conversation responses to handle."""
-    logger.info("checking_pending_conversations")
+    import datetime
+    from datetime import UTC
 
-    async def _run():
+    from sqlalchemy import select
+
+    async def _run() -> None:
         from src.core.database import get_session_factory
+        from src.domain.conversation.models import Conversation, ConversationMessage
 
         factory = get_session_factory()
-        async with factory():
-            # In production, this would check for messages needing AI responses
-            # For now, it's a placeholder for the background check loop
-            pass
+        async with factory() as session:
+            cutoff = datetime.datetime.now(UTC) - datetime.timedelta(minutes=5)
+            stmt = (
+                select(Conversation)
+                .where(
+                    Conversation.status == "active",
+                    Conversation.message_count > 0,
+                    Conversation.escalated_at.is_(None),  # type: ignore[union-attr]
+                    Conversation.updated_at < cutoff,  # type: ignore[union-attr]
+                )
+                .limit(50)
+            )
+            result = await session.execute(stmt)
+            conversations = list(result.scalars().all())
+
+            handled = 0
+            for conv in conversations:
+                msg_stmt = (
+                    select(ConversationMessage)
+                    .where(ConversationMessage.conversation_id == conv.id)
+                    .order_by(ConversationMessage.created_at.desc())
+                    .limit(1)
+                )
+                last_msg = (await session.execute(msg_stmt)).scalar_one_or_none()
+                if last_msg and last_msg.role == "contact":
+                    handled += 1
+
+            logger.info(
+                "checked_pending_conversations",
+                total=len(conversations),
+                pending_ai_reply=handled,
+            )
 
     asyncio.run(_run())
 

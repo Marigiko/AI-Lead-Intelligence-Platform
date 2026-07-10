@@ -73,7 +73,7 @@ class AnalyticsUseCases:
         pipeline_value = (
             await self._session.execute(
                 select(func.coalesce(func.sum(Deal.value), 0)).where(
-                    and_(Deal.tenant_id == self._tenant_id, Deal.stage != "lost")
+                    and_(Deal.tenant_id == self._tenant_id, Deal.stage != "Perdido")
                 )
             )
         ).scalar() or 0
@@ -81,7 +81,7 @@ class AnalyticsUseCases:
         won_value = (
             await self._session.execute(
                 select(func.coalesce(func.sum(Deal.value), 0)).where(
-                    and_(Deal.tenant_id == self._tenant_id, Deal.stage == "won")
+                    and_(Deal.tenant_id == self._tenant_id, Deal.stage == "Ganado")
                 )
             )
         ).scalar() or 0
@@ -240,7 +240,7 @@ class AnalyticsUseCases:
         won_value = (
             await self._session.execute(
                 select(func.coalesce(func.sum(Deal.value), 0)).where(
-                    and_(Deal.tenant_id == self._tenant_id, Deal.stage == "won")
+                    and_(Deal.tenant_id == self._tenant_id, Deal.stage == "Ganado")
                 )
             )
         ).scalar() or 0
@@ -255,7 +255,7 @@ class AnalyticsUseCases:
             await self._session.execute(
                 select(func.count())
                 .select_from(Deal)
-                .where(and_(Deal.tenant_id == self._tenant_id, Deal.stage == "won"))
+                .where(and_(Deal.tenant_id == self._tenant_id, Deal.stage == "Ganado"))
             )
         ).scalar() or 0
 

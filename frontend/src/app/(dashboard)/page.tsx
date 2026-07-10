@@ -1,43 +1,98 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   Building2, Users, Send, Briefcase, TrendingUp, Zap,
   ArrowUpRight, ArrowDownRight, DollarSign, Target, MessageSquare,
 } from "lucide-react";
+import { api } from "@/lib/api-client";
+import { AnalyticsOverview, CompanyDetail, CompanyListResponse } from "@/lib/types";
 
-const stats = [
-  { label: "Empresas", value: "247", change: "+32", icon: Building2, color: "text-blue-500" },
-  { label: "Contactos", value: "183", change: "+18", icon: Users, color: "text-purple-500" },
-  { label: "Campanas", value: "4", change: "+1", icon: Send, color: "text-green-500" },
-  { label: "Reuniones", value: "7", change: "+3", icon: Briefcase, color: "text-orange-500" },
-];
+interface TopOpportunity {
+  name: string;
+  score: number;
+  industry: string;
+  value: string;
+}
 
-const topOpportunities = [
-  { name: "Constructora Chaco SRL", score: 95, industry: "Construccion", value: "$5,000" },
-  { name: "Transporte Pesado del Norte", score: 91, industry: "Logistica", value: "$4,500" },
-  { name: "Clinica Dental Sonrisa", score: 88, industry: "Salud", value: "$4,000" },
-  { name: "Restaurante La Parrilla", score: 85, industry: "Gastronomia", value: "$3,500" },
-  { name: "Estudio Juridico Moreno", score: 82, industry: "Legal", value: "$3,200" },
-];
+type CompanyWithDetail = CompanyListResponse & { items: CompanyDetail[] };
 
-const recentActivity = [
-  { company: "Constructora Chaco SRL", action: "Score calculado: 95/100", time: "Hace 5 min", type: "score" },
-  { company: "Estudio Juridico Moreno", action: "Email enviado — abierto", time: "Hace 12 min", type: "email" },
-  { company: "Hotel Cacique Calchaqui", action: "Respuesta recibida — interesado", time: "Hace 35 min", type: "reply" },
-  { company: "Clinica Dental Sonrisa", action: "Reunion agendada para 15/Jun", time: "Hace 1 hora", type: "meeting" },
-  { company: "Distribuidora El Norte", action: "Enriquecimiento completado", time: "Hace 2 horas", type: "enrichment" },
-];
+interface PipelineStage {
+  stage: string;
+  count: number;
+  color: string;
+}
 
-const pipelineSummary = [
-  { stage: "Prospeccion", count: 45, color: "#94a3b8" },
-  { stage: "Contacto", count: 28, color: "#60a5fa" },
-  { stage: "Calificado", count: 15, color: "#a78bfa" },
-  { stage: "Propuesta", count: 8, color: "#fbbf24" },
-  { stage: "Negociacion", count: 5, color: "#f97316" },
-  { stage: "Ganado", count: 12, color: "#22c55e" },
-];
+const STAGE_COLORS: Record<string, string> = {
+  prospeccion: "#94a3b8",
+  Contacto: "#60a5fa",
+  Calificado: "#a78bfa",
+  propuesta: "#fbbf24",
+  Negociacion: "#f97316",
+  Ganado: "#22c55e",
+  Perdido: "#ef4444",
+};
 
 export default function DashboardPage() {
+  const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
+  const [topCompanies, setTopCompanies] = useState<CompanyDetail[]>([]);
+  const [pipeline, setPipeline] = useState<PipelineStage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const [overviewData, companiesData, pipelineData] = await Promise.all([
+          api.get<AnalyticsOverview>("/api/v1/analytics/dashboard"),
+          api.get<CompanyWithDetail>("/api/v1/companies", { limit: "5", sort_by: "opportunity_score" }),
+          api.get<{ stage: string; count: number }[]>("/api/v1/analytics/pipeline"),
+        ]);
+        setOverview(overviewData);
+        setTopCompanies(companiesData.items);
+        setPipeline(
+          pipelineData.map((p) => ({
+            stage: p.stage,
+            count: p.count,
+            color: STAGE_COLORS[p.stage] || "#94a3b8",
+          }))
+        );
+      } catch (err: any) {
+        setError(err.error?.message || err.message || "Failed to load dashboard");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <span className="ml-3 text-muted-foreground">Cargando dashboard...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
+        Error: {error}
+      </div>
+    );
+  }
+
+  const topOpportunities: TopOpportunity[] = topCompanies.map((c) => ({
+    name: c.name,
+    score: c.opportunity_score,
+    industry: c.industry || "",
+    value: c.estimated_deal_value ? `$${c.estimated_deal_value.toLocaleString()}` : "—",
+  }));
+
+  const maxPipelineCount = Math.max(...pipeline.map((p) => p.count), 1);
+
   return (
     <div className="space-y-6">
       <div>
@@ -47,18 +102,37 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <div key={stat.label} className="bg-card rounded-lg border p-4">
-            <div className="flex items-center justify-between">
-              <stat.icon size={18} className={stat.color} />
-              <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-0.5">
-                <ArrowUpRight size={12} /> {stat.change}
-              </span>
-            </div>
-            <p className="text-2xl font-bold text-foreground mt-2">{stat.value}</p>
-            <p className="text-xs text-muted-foreground">{stat.label}</p>
+        <div className="bg-card rounded-lg border p-4">
+          <div className="flex items-center justify-between">
+            <Building2 size={18} className="text-blue-500" />
+            <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-0.5">
+              <ArrowUpRight size={12} /> +{overview?.companies_this_week ?? 0}
+            </span>
           </div>
-        ))}
+          <p className="text-2xl font-bold text-foreground mt-2">{overview?.total_companies ?? 0}</p>
+          <p className="text-xs text-muted-foreground">Empresas</p>
+        </div>
+        <div className="bg-card rounded-lg border p-4">
+          <div className="flex items-center justify-between">
+            <Users size={18} className="text-purple-500" />
+          </div>
+          <p className="text-2xl font-bold text-foreground mt-2">{overview?.total_contacts ?? 0}</p>
+          <p className="text-xs text-muted-foreground">Contactos</p>
+        </div>
+        <div className="bg-card rounded-lg border p-4">
+          <div className="flex items-center justify-between">
+            <Send size={18} className="text-green-500" />
+          </div>
+          <p className="text-2xl font-bold text-foreground mt-2">{overview?.total_campaigns ?? 0}</p>
+          <p className="text-xs text-muted-foreground">Campanas</p>
+        </div>
+        <div className="bg-card rounded-lg border p-4">
+          <div className="flex items-center justify-between">
+            <Briefcase size={18} className="text-orange-500" />
+          </div>
+          <p className="text-2xl font-bold text-foreground mt-2">{overview?.total_deals ?? 0}</p>
+          <p className="text-xs text-muted-foreground">Negocios</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -72,23 +146,27 @@ export default function DashboardPage() {
             <span className="text-xs text-muted-foreground">Top 5</span>
           </div>
           <div className="p-4 space-y-3">
-            {topOpportunities.map((opp, i) => (
-              <div key={opp.name} className="flex items-center gap-3">
-                <span className="text-sm font-medium text-muted-foreground w-5">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{opp.name}</p>
-                  <p className="text-xs text-muted-foreground">{opp.industry}</p>
+            {topOpportunities.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin oportunidades disponibles</p>
+            ) : (
+              topOpportunities.map((opp, i) => (
+                <div key={opp.name} className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-muted-foreground w-5">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{opp.name}</p>
+                    <p className="text-xs text-muted-foreground">{opp.industry}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                      opp.score >= 80 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-yellow-100 text-yellow-700"
+                    }`}>
+                      {opp.score}
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-0.5">{opp.value}</p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                    opp.score >= 80 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-yellow-100 text-yellow-700"
-                  }`}>
-                    {opp.score}
-                  </span>
-                  <p className="text-xs text-muted-foreground mt-0.5">{opp.value}</p>
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -101,24 +179,28 @@ export default function DashboardPage() {
             </h2>
           </div>
           <div className="p-4 space-y-3">
-            {pipelineSummary.map((s) => (
-              <div key={s.stage} className="flex items-center gap-3">
-                <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
-                <span className="text-sm text-foreground flex-1">{s.stage}</span>
-                <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${(s.count / 45) * 100}%`, backgroundColor: s.color }}
-                  />
+            {pipeline.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin datos de pipeline</p>
+            ) : (
+              pipeline.map((s) => (
+                <div key={s.stage} className="flex items-center gap-3">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+                  <span className="text-sm text-foreground flex-1">{s.stage}</span>
+                  <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${(s.count / maxPipelineCount) * 100}%`, backgroundColor: s.color }}
+                    />
+                  </div>
+                  <span className="text-sm font-medium text-foreground w-6 text-right">{s.count}</span>
                 </div>
-                <span className="text-sm font-medium text-foreground w-6 text-right">{s.count}</span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
           <div className="p-4 border-t">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Valor total</span>
-              <span className="font-bold text-foreground">$342,000</span>
+              <span className="font-bold text-foreground">${(overview?.pipeline_value ?? 0).toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -132,23 +214,7 @@ export default function DashboardPage() {
             </h2>
           </div>
           <div className="p-4 space-y-3">
-            {recentActivity.map((activity, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${
-                  activity.type === "score" ? "bg-yellow-500" :
-                  activity.type === "email" ? "bg-blue-500" :
-                  activity.type === "reply" ? "bg-green-500" :
-                  activity.type === "meeting" ? "bg-purple-500" : "bg-gray-500"
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-foreground">
-                    <span className="font-medium">{activity.company}</span>{" "}
-                    <span className="text-muted-foreground">{activity.action}</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{activity.time}</p>
-                </div>
-              </div>
-            ))}
+            <p className="text-sm text-muted-foreground">Sin actividad reciente</p>
           </div>
         </div>
       </div>
@@ -160,24 +226,24 @@ export default function DashboardPage() {
             <DollarSign size={16} className="text-green-500" />
             <span className="text-sm font-medium text-foreground">Ingresos Potenciales</span>
           </div>
-          <p className="text-2xl font-bold text-foreground">$342,000</p>
-          <p className="text-xs text-muted-foreground mt-1">113 empresas qualificadas</p>
+          <p className="text-2xl font-bold text-foreground">${(overview?.pipeline_value ?? 0).toLocaleString()}</p>
+          <p className="text-xs text-muted-foreground mt-1">{overview?.total_companies ?? 0} empresas analizadas</p>
         </div>
         <div className="bg-card rounded-lg border p-4">
           <div className="flex items-center gap-2 mb-2">
             <MessageSquare size={16} className="text-blue-500" />
-            <span className="text-sm font-medium text-foreground">Tasa de Respuesta</span>
+            <span className="text-sm font-medium text-foreground">Score Promedio</span>
           </div>
-          <p className="text-2xl font-bold text-foreground">24.3%</p>
-          <p className="text-xs text-muted-foreground mt-1">18 de 74 emails enviados</p>
+          <p className="text-2xl font-bold text-foreground">{overview?.avg_opportunity_score ?? 0}/100</p>
+          <p className="text-xs text-muted-foreground mt-1">{overview?.total_companies ?? 0} empresas analizadas</p>
         </div>
         <div className="bg-card rounded-lg border p-4">
           <div className="flex items-center gap-2 mb-2">
             <Zap size={16} className="text-yellow-500" />
-            <span className="text-sm font-medium text-foreground">Score Promedio</span>
+            <span className="text-sm font-medium text-foreground">Empresas esta semana</span>
           </div>
-          <p className="text-2xl font-bold text-foreground">78/100</p>
-          <p className="text-xs text-muted-foreground mt-1">247 empresas analizadas</p>
+          <p className="text-2xl font-bold text-foreground">{overview?.companies_this_week ?? 0}</p>
+          <p className="text-xs text-muted-foreground mt-1">nuevas empresas analizadas</p>
         </div>
       </div>
     </div>
