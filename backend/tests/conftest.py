@@ -48,6 +48,18 @@ def anyio_backend():
     return "asyncio"
 
 
+@pytest.fixture(autouse=True, scope="session")
+async def _setup_test_db():
+    """Auto-create all tables in test DB before running tests."""
+    from src.core.config import get_settings
+
+    settings = get_settings()
+    if settings.environment == "testing":
+        from src.core.database import init_db
+
+        await init_db()
+
+
 @pytest_asyncio.fixture(scope="function")
 async def client() -> AsyncGenerator[AsyncClient, None]:
     """Create a fresh test client with DB dependency override."""

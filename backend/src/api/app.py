@@ -33,6 +33,8 @@ from src.infrastructure.scraping.engine import get_browser_pool
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    from starlette.types import ASGIApp, Receive, Scope, Send
+
 logger = structlog.get_logger()
 
 _INSECURE_DEFAULTS = ("change-me-in-production", "secret", "password", "admin")
@@ -205,7 +207,7 @@ class _CORSMiddleware:
 
     def __init__(
         self,
-        app,
+        app: ASGIApp,
         allow_origins: list[str] | None = None,
         allow_credentials: bool = True,
         allow_methods: list[str] | None = None,
@@ -217,7 +219,7 @@ class _CORSMiddleware:
         self.allow_methods = allow_methods or ["*"]
         self.allow_headers = allow_headers or ["*"]
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -234,7 +236,7 @@ class _CORSMiddleware:
             await self._send_cors_response(send)
             return
 
-        async def send_with_cors(message):
+        async def send_with_cors(message: Any) -> None:
             if message["type"] == "http.response.start" and allowed:
                 headers = list(message.get("headers", []))
                 headers.append((b"access-control-allow-origin", origin.encode() or b"*"))
@@ -251,7 +253,7 @@ class _CORSMiddleware:
 
         await self.app(scope, receive, send_with_cors)
 
-    async def _send_cors_response(self, send):
+    async def _send_cors_response(self, send: Send) -> None:
         await send(
             {
                 "type": "http.response.start",
