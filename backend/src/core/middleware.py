@@ -7,9 +7,13 @@ from __future__ import annotations
 
 import time
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 import structlog
 from starlette.responses import JSONResponse
+
+if TYPE_CHECKING:
+    from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 logger = structlog.get_logger()
 
@@ -17,13 +21,13 @@ logger = structlog.get_logger()
 class RateLimitMiddleware:
     """ASGI middleware: simple in-memory rate limiter per IP."""
 
-    def __init__(self, app, max_requests: int = 100, window_seconds: int = 60):
+    def __init__(self, app: ASGIApp, max_requests: int = 100, window_seconds: int = 60) -> None:
         self.app = app
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self._requests: dict[str, list[float]] = defaultdict(list)
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -57,15 +61,15 @@ class RateLimitMiddleware:
 class SecurityHeadersMiddleware:
     """ASGI middleware that adds security headers."""
 
-    def __init__(self, app) -> None:
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        async def send_with_headers(message):
+        async def send_with_headers(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
                 headers.append((b"x-content-type-options", b"nosniff"))
@@ -82,10 +86,10 @@ class SecurityHeadersMiddleware:
 class RequestLoggingMiddleware:
     """ASGI middleware that logs requests with timing."""
 
-    def __init__(self, app) -> None:
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -94,7 +98,7 @@ class RequestLoggingMiddleware:
         method = scope.get("method", "?")
         path = scope.get("path", "/")
 
-        async def send_and_log(message):
+        async def send_and_log(message: Message) -> None:
             if message["type"] == "http.response.start":
                 elapsed_ms = (time.time() - start) * 1000
                 status = message.get("status", 0)

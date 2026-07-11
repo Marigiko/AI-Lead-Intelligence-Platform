@@ -49,7 +49,8 @@ async def test_update_deal_stage(authenticated_client):
 async def test_get_pipeline(authenticated_client):
     response = await authenticated_client.get("/api/v1/deals/pipeline")
     assert response.status_code == 200
-    stages = response.json()
+    body = response.json()
+    stages = body["stages"]
     assert len(stages) >= 5
     stage_names = [s["name"] for s in stages]
     assert "Ganado" in stage_names

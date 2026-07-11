@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING
 os.environ["ENVIRONMENT"] = "testing"
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-testing-only"  # noqa: S105
 os.environ["SECRET_KEY"] = "test-app-secret-for-testing-only"  # noqa: S105
-os.environ["REDIS_URL"] = "redis://localhost:6381/0"
+os.environ["REDIS_URL"] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 os.environ["DATABASE_URL"] = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://leadplatform:leadplatform@localhost:5434/leadplatform_test",
+    "postgresql+asyncpg://leadplatform:leadplatform@localhost:5432/leadplatform_test",
 )
 
 if TYPE_CHECKING:
@@ -69,7 +69,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
             _engine_cache[loop_id] = create_async_engine(
                 os.getenv(
                     "TEST_DATABASE_URL",
-                    "postgresql+asyncpg://leadplatform:leadplatform@localhost:5434/leadplatform_test",
+                    "postgresql+asyncpg://leadplatform:leadplatform@localhost:5432/leadplatform_test",
                 ),
                 pool_pre_ping=True,
             )

@@ -56,6 +56,7 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql+asyncpg://leadplatform:leadplatform@localhost:5432/leadplatform_test
+      TEST_DATABASE_URL: postgresql+asyncpg://leadplatform:leadplatform@localhost:5432/leadplatform_test
       REDIS_URL: redis://localhost:6379/0
       JWT_SECRET_KEY: test-secret
       ENVIRONMENT: testing

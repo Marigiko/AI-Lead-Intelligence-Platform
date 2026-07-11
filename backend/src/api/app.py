@@ -183,20 +183,20 @@ def create_app() -> FastAPI:
             },
         }
 
-    return _FastAPIAppWrapper(app, wrapped)
+    return _FastAPIAppWrapper(app, wrapped)  # pyright: ignore[reportReturnType]
 
 
 class _FastAPIAppWrapper:
     """Exposes FastAPI app interface on top of a wrapped ASGI app."""
 
-    def __init__(self, fastapi_app, wrapped):
+    def __init__(self, fastapi_app: FastAPI, wrapped: Any) -> None:
         object.__setattr__(self, "_fastapi_app", fastapi_app)
         object.__setattr__(self, "_wrapped", wrapped)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(object.__getattribute__(self, "_fastapi_app"), name)
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
         await object.__getattribute__(self, "_wrapped")(scope, receive, send)
 
 
@@ -261,11 +261,11 @@ class _CORSMiddleware:
                     (b"access-control-allow-credentials", b"true"),
                     (
                         b"access-control-allow-methods",
-                        b", ".join(self.allow_methods).encode(),
+                        ", ".join(self.allow_methods).encode(),
                     ),
                     (
                         b"access-control-allow-headers",
-                        b", ".join(self.allow_headers).encode(),
+                        ", ".join(self.allow_headers).encode(),
                     ),
                     (b"content-length", b"0"),
                 ],

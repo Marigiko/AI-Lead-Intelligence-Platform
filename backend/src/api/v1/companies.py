@@ -74,7 +74,48 @@ class CompanyDetailResponse(CompanyResponse):
     estimated_deal_value: float | None
 
 
+class CreateCompanyRequest(BaseModel):
+    name: str
+    domain: str | None = None
+    industry: str | None = None
+    city: str | None = None
+    province: str | None = None
+    country: str | None = None
+    phone: str | None = None
+    email: str | None = None
+
+
 # --- Routes ---
+
+
+@router.post("", response_model=CompanyResponse, status_code=201)
+async def create_company(
+    data: CreateCompanyRequest,
+    user: CurrentUser,
+    session: DBSession,
+):
+    from src.domain.company.models import Company
+
+    if user.tenant_id is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=403, detail="Invalid tenant")
+
+    repo = _get_repo(session)
+    company = Company(
+        tenant_id=user.tenant_id,
+        name=data.name,
+        domain=data.domain,
+        industry=data.industry,
+        city=data.city,
+        province=data.province,
+        country=data.country,
+        phone=data.phone,
+        email=data.email,
+    )
+    company = await repo.create(company)
+    await session.commit()
+    return CompanyResponse.model_validate(company)
 
 
 @router.get("", response_model=CompanyListResponse)
@@ -123,6 +164,33 @@ async def list_companies(
         offset=offset,
         limit=limit,
     )
+
+
+@router.get("/{company_id}/score")
+async def score_company(
+    company_id: UUID,
+    user: CurrentUser,
+    session: DBSession,
+):
+    from src.application.scoring.engine import ScoringEngine
+
+    repo = _get_repo(session)
+    company = await repo.get_by_id(company_id)
+    if not company or company.tenant_id != user.tenant_id:
+        from src.core.exceptions import NotFoundError
+
+        raise NotFoundError("Company", str(company_id))
+
+    engine = ScoringEngine()
+    data = {
+        "domain": company.domain,
+        "has_ssl": company.has_ssl or False,
+        "google_place_id": company.google_place_id,
+        "linkedin_url": company.linkedin_url,
+        "facebook_url": company.facebook_url,
+    }
+    breakdown = engine.calculate_score(data)
+    return {"score": breakdown.total, "breakdown": breakdown.to_dict()}
 
 
 @router.get("/{company_id}", response_model=CompanyDetailResponse)

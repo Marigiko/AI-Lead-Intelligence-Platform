@@ -84,7 +84,7 @@ async def list_campaigns(
     )
 
 
-@router.post("", response_model=CampaignResponse)
+@router.post("", response_model=CampaignResponse, status_code=201)
 async def create_campaign(
     data: CreateCampaignRequest,
     user: CurrentUser,

@@ -52,13 +52,13 @@ class AddNoteRequest(BaseModel):
 class DealResponse(BaseModel):
     id: str
     title: str
-    value: float | None
-    currency: str
+    value: float | None = None
+    currency: str = "USD"
     stage: str
-    probability: int
-    company_id: str | None
-    expected_close_date: str | None
-    created_at: str
+    probability: int = 10
+    company_id: str | None = None
+    expected_close_date: str | None = None
+    created_at: str | None = None
 
 
 class PipelineStageResponse(BaseModel):
@@ -91,6 +91,19 @@ class ActivityResponse(BaseModel):
 # --- Routes ---
 
 
+@router.get("", response_model=dict)
+async def list_deals(
+    user: CurrentUser,
+    session: DBSession,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+) -> dict[str, Any]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
+    use_cases = CRMUseCases(session, user.tenant_id)
+    return await use_cases.list_deals(offset=offset, limit=limit)
+
+
 @router.get("/pipeline", response_model=PipelineResponse)
 async def get_pipeline(
     user: CurrentUser,
@@ -103,7 +116,7 @@ async def get_pipeline(
     return await use_cases.get_pipeline()
 
 
-@router.post("", response_model=DealResponse)
+@router.post("", response_model=DealResponse, status_code=201)
 async def create_deal(
     data: CreateDealRequest,
     user: CurrentUser,

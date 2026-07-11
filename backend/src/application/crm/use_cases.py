@@ -104,6 +104,33 @@ class CRMUseCases:
 
         return {"stages": stage_views, "stats": stats}
 
+    async def list_deals(self, offset: int = 0, limit: int = 20) -> dict[str, Any]:
+        """List deals with pagination."""
+        deals, total = await self._deal_repo.list_by_tenant(
+            self._tenant_id,
+            offset=offset,
+            limit=limit,
+        )
+        return {
+            "items": [
+                {
+                    "id": str(d.id),
+                    "title": d.title,
+                    "value": d.value,
+                    "currency": d.currency,
+                    "stage": d.stage,
+                    "probability": d.probability,
+                    "company_id": str(d.company_id) if d.company_id else None,
+                    "expected_close_date": (
+                        str(d.expected_close_date) if d.expected_close_date else None
+                    ),
+                    "created_at": str(d.created_at),
+                }
+                for d in deals
+            ],
+            "total": total,
+        }
+
     async def create_deal(self, data: dict[str, Any]) -> dict[str, Any]:
         """Create a new deal."""
         deal = Deal(
