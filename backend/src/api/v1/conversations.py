@@ -1,7 +1,3 @@
-"""
-Conversations (SDR) API routes.
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -15,7 +11,6 @@ from src.application.sdr.use_cases import SDRUseCases
 if TYPE_CHECKING:
     from uuid import UUID
 
-    from src.api.dependencies import CurrentUser, DBSession
     from src.core.security import TokenPayload
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
@@ -214,3 +209,6 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
             await websocket.send_json({"type": "ack", "data": data})
     except WebSocketDisconnect:
         manager.disconnect(websocket, conversation_id)
+
+if TYPE_CHECKING:
+    from src.api.dependencies import CurrentUser, DBSession

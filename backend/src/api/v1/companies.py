@@ -10,9 +10,6 @@ from src.infrastructure.database.repositories.company_repo import SQLAlchemyComp
 if TYPE_CHECKING:
     from uuid import UUID
 
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from src.api.dependencies import CurrentUser, DBSession
     from src.domain.company.repository import CompanyRepository
 
 router = APIRouter(prefix="/companies", tags=["Companies"])
@@ -144,3 +141,8 @@ async def get_company(
 
         raise NotFoundError("Company", str(company_id))
     return CompanyDetailResponse.model_validate(company)
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from src.api.dependencies import CurrentUser, DBSession

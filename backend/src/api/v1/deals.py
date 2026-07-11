@@ -1,7 +1,3 @@
-"""
-Deals (CRM) API routes.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
@@ -14,8 +10,6 @@ from src.application.crm.use_cases import CRMUseCases
 if TYPE_CHECKING:
     from datetime import date
     from uuid import UUID
-
-    from src.api.dependencies import CurrentUser, DBSession
 
 router = APIRouter(prefix="/deals", tags=["Deals"])
 
@@ -227,3 +221,6 @@ async def get_stats(
         raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = CRMUseCases(session, user.tenant_id)
     return await use_cases.get_stats()
+
+if TYPE_CHECKING:
+    from src.api.dependencies import CurrentUser, DBSession

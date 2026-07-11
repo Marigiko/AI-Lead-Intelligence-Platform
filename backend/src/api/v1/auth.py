@@ -32,7 +32,7 @@ def _get_use_cases(session: AsyncSession) -> AuthUseCases:
     return AuthUseCases(user_repo, tenant_repo, session)
 
 
-@router.post("/register", response_model=TokenResponse)
+@router.post("/register", response_model=TokenResponse, status_code=201)
 async def register(data: RegisterRequest, session: AsyncSession = Depends(get_db)):  # noqa: B008
     use_cases = _get_use_cases(session)
     return await use_cases.register(data)

@@ -1,7 +1,3 @@
-"""
-Campaigns API routes.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -13,8 +9,6 @@ from src.application.outreach.use_cases import OutreachUseCases
 
 if TYPE_CHECKING:
     from uuid import UUID
-
-    from src.api.dependencies import CurrentUser, DBSession
 
 router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
 
@@ -194,3 +188,6 @@ async def get_stats(
         raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = OutreachUseCases(session, user.tenant_id)
     return await use_cases.get_campaign_stats(campaign_id)
+
+if TYPE_CHECKING:
+    from src.api.dependencies import CurrentUser, DBSession

@@ -1,18 +1,16 @@
 """
 Pytest configuration and shared fixtures.
-CRITICAL: Set env vars at module top BEFORE any src import to ensure
-test config propagates to module-level get_settings() calls (e.g. celery_app).
+Uses DATABASE_URL env var for test DB and resets engine cache between tests.
 """
 
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, AsyncGenerator
+from typing import TYPE_CHECKING
 
-# ── Set all env vars BEFORE importing any src module ──
 os.environ["ENVIRONMENT"] = "testing"
-os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-testing-only"
-os.environ["SECRET_KEY"] = "test-app-secret-for-testing-only"
+os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-testing-only"  # noqa: S105
+os.environ["SECRET_KEY"] = "test-app-secret-for-testing-only"  # noqa: S105
 os.environ["REDIS_URL"] = "redis://localhost:6381/0"
 os.environ["DATABASE_URL"] = os.getenv(
     "TEST_DATABASE_URL",
@@ -20,13 +18,17 @@ os.environ["DATABASE_URL"] = os.getenv(
 )
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from sqlalchemy.ext.asyncio import AsyncSession
+
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from src.api.app import app
+from src.core.database import reset_db_cache
 
 
 @pytest.fixture(scope="session")
@@ -34,20 +36,19 @@ def anyio_backend():
     return "asyncio"
 
 
+@pytest.fixture(autouse=True)
+def _reset_engine_cache():
+    """Clear the cached engine/session factory before each test (new event loop)."""
+    reset_db_cache()
+    return
+
+
 @pytest_asyncio.fixture(scope="function")
 async def client() -> AsyncGenerator[AsyncClient, None]:
     """Create a test client using the test database."""
-    from src.core import database
-
-    database._engine = None
-    database._session_factory = None
-
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-
-    if database._engine:
-        await database._engine.dispose()
 
 
 @pytest_asyncio.fixture(scope="function")

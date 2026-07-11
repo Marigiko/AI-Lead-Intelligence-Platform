@@ -57,16 +57,16 @@ async def test_tracking_open_returns_pixel(client):
 
 @pytest.mark.anyio
 async def test_tracking_click_redirects(client):
-    response = await client.get(
-        "/api/v1/campaigns/track/click/test-id?url=https://example.com"
-    )
+    response = await client.get("/api/v1/campaigns/track/click/test-id?url=https://example.com")
     assert response.status_code == 302
     assert "example.com" in response.headers.get("location", "")
 
 
 @pytest.mark.anyio
 async def test_tracking_unsubscribe(client):
-    response = await client.post("/api/v1/campaigns/track/unsubscribe/some-id")
+    import uuid
+
+    response = await client.post(f"/api/v1/campaigns/track/unsubscribe/{uuid.uuid4()}")
     assert response.status_code == 200
 
 

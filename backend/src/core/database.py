@@ -101,3 +101,10 @@ async def close_db() -> None:
         await _engine.dispose()
         _engine = None
         _session_factory = None
+
+
+def reset_db_cache() -> None:
+    """Reset cached engine and session factory (for testing only)."""
+    global _engine, _session_factory
+    _engine = None
+    _session_factory = None
