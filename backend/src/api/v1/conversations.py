@@ -1,17 +1,14 @@
-from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Any
+from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
+from src.api.dependencies import CurrentUser, DBSession
 from src.application.sdr.use_cases import SDRUseCases
-
-if TYPE_CHECKING:
-    from uuid import UUID
-
-    from src.core.security import TokenPayload
+from src.core.security import TokenPayload
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
 
@@ -211,5 +208,3 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
         manager.disconnect(websocket, conversation_id)
 
 
-if TYPE_CHECKING:
-    from src.api.dependencies import CurrentUser, DBSession

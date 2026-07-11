@@ -1,16 +1,11 @@
-from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from src.api.dependencies import CurrentUser, DBSession
 from src.application.enrichment.use_cases import EnrichmentUseCases
-
-if TYPE_CHECKING:
-    from uuid import UUID
-
-    from src.api.dependencies import CurrentUser, DBSession
 
 router = APIRouter(prefix="/enrichment", tags=["Enrichment"])
 

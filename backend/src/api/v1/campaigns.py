@@ -1,14 +1,11 @@
-from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from src.api.dependencies import CurrentUser, DBSession
 from src.application.outreach.use_cases import OutreachUseCases
-
-if TYPE_CHECKING:
-    from uuid import UUID
 
 router = APIRouter(prefix="/campaigns", tags=["Campaigns"])
 
@@ -190,5 +187,3 @@ async def get_stats(
     return await use_cases.get_campaign_stats(campaign_id)
 
 
-if TYPE_CHECKING:
-    from src.api.dependencies import CurrentUser, DBSession

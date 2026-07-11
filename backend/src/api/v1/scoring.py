@@ -1,17 +1,14 @@
-from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import APIRouter
 
+from src.api.dependencies import CurrentUser, OptionalUser
 from src.application.scoring.engine import get_scoring_engine
 from src.infrastructure.scraping.seo_analyzer import get_seo_analyzer
 from src.infrastructure.scraping.social_detector import get_social_detector
 from src.infrastructure.scraping.tech_detector import get_tech_detector
-
-if TYPE_CHECKING:
-    from src.api.dependencies import CurrentUser
 
 router = APIRouter(prefix="/scoring", tags=["Scoring"])
 
@@ -35,7 +32,7 @@ async def get_scoring_rules(user: CurrentUser):  # noqa: ARG001
 @router.post("/preview")
 async def preview_score(
     domain: str | None = None,
-    user: CurrentUser | None = None,  # noqa: ARG001
+    user: OptionalUser = None,  # noqa: ARG001
 ):
     """Preview opportunity score for a domain (without saving)."""
     if not domain:

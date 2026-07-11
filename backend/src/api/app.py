@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 
 import structlog
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from src.api.v1.analytics import router as analytics_router
@@ -79,7 +78,8 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
         importlib.import_module(mod_name)
 
     # Initialize infrastructure
-    await init_db()
+    if settings.environment != "testing":
+        await init_db()
     await get_redis()
     get_event_bus()  # Initialize event bus
 
@@ -100,6 +100,7 @@ def create_app() -> FastAPI:
     if settings.is_production:
         _validate_production_settings(settings)
 
+    testing = settings.environment == "testing"
     app = FastAPI(
         title=settings.app_name,
         version="0.1.0",
@@ -107,23 +108,21 @@ def create_app() -> FastAPI:
         docs_url="/api/v1/docs" if settings.debug else None,
         redoc_url="/api/v1/redoc" if settings.debug else None,
         default_response_class=JSONResponse,
-        lifespan=lifespan,
+        lifespan=None if testing else lifespan,
     )
 
-    # CORS
-    app.add_middleware(
-        CORSMiddleware,
+    # CORS (pure ASGI to avoid event loop issues)
+    wrapped = _CORSMiddleware(
+        SecurityHeadersMiddleware(
+            RateLimitMiddleware(RequestLoggingMiddleware(app), max_requests=100, window_seconds=60)
+            if settings.is_production
+            else RequestLoggingMiddleware(app)
+        ),
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    # Security & monitoring middleware
-    app.add_middleware(SecurityHeadersMiddleware)
-    if settings.is_production:
-        app.add_middleware(RateLimitMiddleware, max_requests=100, window_seconds=60)
-    app.add_middleware(RequestLoggingMiddleware)
 
     # Request timing middleware
     @app.middleware("http")
@@ -184,7 +183,94 @@ def create_app() -> FastAPI:
             },
         }
 
-    return app
+    return _FastAPIAppWrapper(app, wrapped)
 
+
+class _FastAPIAppWrapper:
+    """Exposes FastAPI app interface on top of a wrapped ASGI app."""
+
+    def __init__(self, fastapi_app, wrapped):
+        object.__setattr__(self, "_fastapi_app", fastapi_app)
+        object.__setattr__(self, "_wrapped", wrapped)
+
+    def __getattr__(self, name):
+        return getattr(object.__getattribute__(self, "_fastapi_app"), name)
+
+    async def __call__(self, scope, receive, send):
+        await object.__getattribute__(self, "_wrapped")(scope, receive, send)
+
+
+class _CORSMiddleware:
+    """Pure ASGI CORS middleware (avoids BaseHTTPMiddleware event loop issues)."""
+
+    def __init__(
+        self,
+        app,
+        allow_origins: list[str] | None = None,
+        allow_credentials: bool = True,
+        allow_methods: list[str] | None = None,
+        allow_headers: list[str] | None = None,
+    ) -> None:
+        self.app = app
+        self.allow_origins = allow_origins or ["*"]
+        self.allow_credentials = allow_credentials
+        self.allow_methods = allow_methods or ["*"]
+        self.allow_headers = allow_headers or ["*"]
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        origin = ""
+        for header_name, header_value in scope.get("headers", []):
+            if header_name == b"origin":
+                origin = header_value.decode()
+                break
+
+        allowed = "*" in self.allow_origins or origin in self.allow_origins
+
+        if scope["method"] == "OPTIONS" and allowed:
+            await self._send_cors_response(send)
+            return
+
+        async def send_with_cors(message):
+            if message["type"] == "http.response.start" and allowed:
+                headers = list(message.get("headers", []))
+                headers.append((b"access-control-allow-origin", origin.encode() or b"*"))
+                if self.allow_credentials:
+                    headers.append((b"access-control-allow-credentials", b"true"))
+                headers.append(
+                    (b"access-control-allow-methods", ", ".join(self.allow_methods).encode())
+                )
+                headers.append(
+                    (b"access-control-allow-headers", ", ".join(self.allow_headers).encode())
+                )
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_with_cors)
+
+    async def _send_cors_response(self, send):
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 204,
+                "headers": [
+                    (b"access-control-allow-origin", b"*"),
+                    (b"access-control-allow-credentials", b"true"),
+                    (
+                        b"access-control-allow-methods",
+                        b", ".join(self.allow_methods).encode(),
+                    ),
+                    (
+                        b"access-control-allow-headers",
+                        b", ".join(self.allow_headers).encode(),
+                    ),
+                    (b"content-length", b"0"),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": b""})
 
 app = create_app()

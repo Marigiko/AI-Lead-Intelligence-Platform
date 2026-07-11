@@ -1,11 +1,11 @@
 """
 Pytest configuration and shared fixtures.
-Uses DATABASE_URL env var for test DB and resets engine cache between tests.
 """
 
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
 os.environ["ENVIRONMENT"] = "testing"
@@ -18,17 +18,30 @@ os.environ["DATABASE_URL"] = os.getenv(
 )
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
-    from sqlalchemy.ext.asyncio import AsyncSession
-
+    pass
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from src.api.app import app
-from src.core.database import reset_db_cache
+from src.api.dependencies import get_db
+from src.api.app import create_app
+
+import importlib
+
+for _model_mod in (
+    "src.domain.audit.models",
+    "src.domain.campaign.models",
+    "src.domain.company.models",
+    "src.domain.contact.models",
+    "src.domain.conversation.models",
+    "src.domain.deal.models",
+    "src.domain.tenant.models",
+    "src.domain.user.models",
+):
+    importlib.import_module(_model_mod)
+del importlib, _model_mod
 
 
 @pytest.fixture(scope="session")
@@ -36,38 +49,63 @@ def anyio_backend():
     return "asyncio"
 
 
-@pytest.fixture(autouse=True)
-def _reset_engine_cache():
-    """Clear the cached engine/session factory before each test (new event loop)."""
-    reset_db_cache()
-    return
-
-
 @pytest_asyncio.fixture(scope="function")
 async def client() -> AsyncGenerator[AsyncClient, None]:
-    """Create a test client using the test database."""
+    """Create a fresh test client with DB dependency override."""
+    from src.core.config import get_settings
+
+    _ = get_settings()
+    app = create_app()
+
+    _engine_cache = {}
+
+    def _get_engine():
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        loop_id = id(loop)
+        if loop_id not in _engine_cache:
+            from sqlalchemy.ext.asyncio import create_async_engine
+
+            _engine_cache[loop_id] = create_async_engine(
+                os.getenv(
+                    "TEST_DATABASE_URL",
+                    "postgresql+asyncpg://leadplatform:leadplatform@localhost:5434/leadplatform_test",
+                ),
+                pool_pre_ping=True,
+            )
+        return _engine_cache[loop_id]
+
+    async def _override_db():
+        factory = async_sessionmaker(bind=_get_engine(), expire_on_commit=False)
+        async with factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+
+    app.dependency_overrides[get_db] = _override_db
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
-
-@pytest_asyncio.fixture(scope="function")
-async def session() -> AsyncGenerator[AsyncSession, None]:
-    """Provide a raw database session for unit tests."""
-    from src.core.database import get_session_factory
-
-    factory = get_session_factory()
-    async with factory() as session:
-        yield session
-        await session.rollback()
+    app.dependency_overrides.clear()
+    for engine in _engine_cache.values():
+        await engine.dispose()
+    _engine_cache.clear()
 
 
 @pytest_asyncio.fixture(scope="function")
 async def authenticated_client(client: AsyncClient) -> AsyncClient:
     """Client with a registered user and valid bearer token."""
-    import uuid
+    import uuid as uuid_mod
 
-    unique_email = f"test-{uuid.uuid4().hex[:8]}@company.com"
+    unique_email = f"test-{uuid_mod.uuid4().hex[:8]}@company.com"
     response = await client.post(
         "/api/v1/auth/register",
         json={

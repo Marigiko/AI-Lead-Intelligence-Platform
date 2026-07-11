@@ -1,15 +1,13 @@
-from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from datetime import date
+from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from src.api.dependencies import CurrentUser, DBSession
 from src.application.crm.use_cases import CRMUseCases
-
-if TYPE_CHECKING:
-    from datetime import date
-    from uuid import UUID
 
 router = APIRouter(prefix="/deals", tags=["Deals"])
 
@@ -223,5 +221,3 @@ async def get_stats(
     return await use_cases.get_stats()
 
 
-if TYPE_CHECKING:
-    from src.api.dependencies import CurrentUser, DBSession

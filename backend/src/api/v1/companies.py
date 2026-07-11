@@ -1,16 +1,14 @@
-from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.dependencies import CurrentUser, DBSession
+from src.domain.company.repository import CompanyRepository
 from src.infrastructure.database.repositories.company_repo import SQLAlchemyCompanyRepository
-
-if TYPE_CHECKING:
-    from uuid import UUID
-
-    from src.domain.company.repository import CompanyRepository
 
 router = APIRouter(prefix="/companies", tags=["Companies"])
 
@@ -143,7 +141,3 @@ async def get_company(
     return CompanyDetailResponse.model_validate(company)
 
 
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from src.api.dependencies import CurrentUser, DBSession

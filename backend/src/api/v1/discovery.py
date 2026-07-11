@@ -1,15 +1,12 @@
-from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from src.api.dependencies import CurrentUser, DBSession
 from src.application.discovery.dto import DiscoverySearchRequest, DiscoverySearchResponse
 from src.application.discovery.use_cases import DiscoveryUseCases
-
-if TYPE_CHECKING:
-    from src.api.dependencies import CurrentUser, DBSession
 
 router = APIRouter(prefix="/discovery", tags=["Discovery"])
 

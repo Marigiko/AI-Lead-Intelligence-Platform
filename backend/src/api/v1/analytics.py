@@ -1,13 +1,9 @@
-from __future__ import annotations
 
-from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException
 
+from src.api.dependencies import CurrentUser, DBSession
 from src.application.analytics.use_cases import AnalyticsUseCases
-
-if TYPE_CHECKING:
-    from src.api.dependencies import CurrentUser, DBSession
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 

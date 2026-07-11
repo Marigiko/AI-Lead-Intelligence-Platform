@@ -1,9 +1,10 @@
-from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.dependencies import CurrentUser
 from src.application.auth.dto import (
     LoginRequest,
     RefreshRequest,
@@ -17,9 +18,7 @@ from src.infrastructure.database.repositories.tenant_repo import SQLAlchemyTenan
 from src.infrastructure.database.repositories.user_repo import SQLAlchemyUserRepository
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
 
-    from src.api.dependencies import CurrentUser
     from src.domain.tenant.repository import TenantRepository
     from src.domain.user.repository import UserRepository
 
