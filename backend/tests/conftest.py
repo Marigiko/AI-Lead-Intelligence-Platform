@@ -5,7 +5,6 @@ Pytest configuration and shared fixtures.
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
 os.environ["ENVIRONMENT"] = "testing"
@@ -18,17 +17,17 @@ os.environ["DATABASE_URL"] = os.getenv(
 )
 
 if TYPE_CHECKING:
-    pass
+    from collections.abc import AsyncGenerator
+
+import importlib
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from src.api.dependencies import get_db
 from src.api.app import create_app
-
-import importlib
+from src.api.dependencies import get_db
 
 for _model_mod in (
     "src.domain.audit.models",

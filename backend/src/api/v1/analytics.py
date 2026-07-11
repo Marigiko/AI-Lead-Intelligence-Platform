@@ -1,5 +1,3 @@
-
-
 from fastapi import APIRouter, HTTPException
 
 from src.api.dependencies import CurrentUser, DBSession

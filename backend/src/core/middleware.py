@@ -14,7 +14,6 @@ from starlette.responses import JSONResponse
 logger = structlog.get_logger()
 
 
-
 class RateLimitMiddleware:
     """ASGI middleware: simple in-memory rate limiter per IP."""
 
@@ -73,9 +72,7 @@ class SecurityHeadersMiddleware:
                 headers.append((b"x-frame-options", b"DENY"))
                 headers.append((b"x-xss-protection", b"1; mode=block"))
                 headers.append((b"referrer-policy", b"strict-origin-when-cross-origin"))
-                headers.append(
-                    (b"permissions-policy", b"camera=(), microphone=(), geolocation=()")
-                )
+                headers.append((b"permissions-policy", b"camera=(), microphone=(), geolocation=()"))
                 message["headers"] = headers
             await send(message)
 

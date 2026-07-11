@@ -1,4 +1,3 @@
-
 from typing import Any
 from uuid import UUID
 
@@ -139,5 +138,3 @@ async def get_company(
 
         raise NotFoundError("Company", str(company_id))
     return CompanyDetailResponse.model_validate(company)
-
-

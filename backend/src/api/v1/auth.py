@@ -1,4 +1,3 @@
-
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends
@@ -18,7 +17,6 @@ from src.infrastructure.database.repositories.tenant_repo import SQLAlchemyTenan
 from src.infrastructure.database.repositories.user_repo import SQLAlchemyUserRepository
 
 if TYPE_CHECKING:
-
     from src.domain.tenant.repository import TenantRepository
     from src.domain.user.repository import UserRepository
 

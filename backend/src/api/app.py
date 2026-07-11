@@ -273,4 +273,5 @@ class _CORSMiddleware:
         )
         await send({"type": "http.response.body", "body": b""})
 
+
 app = create_app()

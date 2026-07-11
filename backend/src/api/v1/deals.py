@@ -1,4 +1,3 @@
-
 from datetime import date
 from typing import Any
 from uuid import UUID
@@ -219,5 +218,3 @@ async def get_stats(
         raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = CRMUseCases(session, user.tenant_id)
     return await use_cases.get_stats()
-
-

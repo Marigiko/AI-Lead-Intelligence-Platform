@@ -1,4 +1,3 @@
-
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
@@ -185,5 +184,3 @@ async def get_stats(
         raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = OutreachUseCases(session, user.tenant_id)
     return await use_cases.get_campaign_stats(campaign_id)
-
-

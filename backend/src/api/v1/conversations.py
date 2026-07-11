@@ -1,4 +1,3 @@
-
 import contextlib
 from typing import Any
 from uuid import UUID
@@ -206,5 +205,3 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
             await websocket.send_json({"type": "ack", "data": data})
     except WebSocketDisconnect:
         manager.disconnect(websocket, conversation_id)
-
-
