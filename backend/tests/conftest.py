@@ -55,6 +55,7 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 async def session() -> AsyncGenerator[AsyncSession, None]:
     """Provide a raw database session for unit tests."""
     from src.core.database import get_session_factory
+
     factory = get_session_factory()
     async with factory() as session:
         yield session

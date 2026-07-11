@@ -87,6 +87,7 @@ class CRMUseCases:
                             "title": d.title,
                             "value": d.value,
                             "currency": d.currency,
+                            "stage": d.stage,
                             "probability": d.probability,
                             "company_id": str(d.company_id) if d.company_id else None,
                             "expected_close_date": str(d.expected_close_date)

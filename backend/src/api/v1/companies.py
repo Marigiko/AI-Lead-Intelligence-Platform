@@ -142,6 +142,7 @@ async def get_company(
         raise NotFoundError("Company", str(company_id))
     return CompanyDetailResponse.model_validate(company)
 
+
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 

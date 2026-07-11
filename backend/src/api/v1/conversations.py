@@ -210,5 +210,6 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
     except WebSocketDisconnect:
         manager.disconnect(websocket, conversation_id)
 
+
 if TYPE_CHECKING:
     from src.api.dependencies import CurrentUser, DBSession

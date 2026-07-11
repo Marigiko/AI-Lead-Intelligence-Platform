@@ -67,8 +67,6 @@ async def test_score_company_endpoint(authenticated_client):
     )
     company_id = create_resp.json()["id"]
 
-    response = await authenticated_client.get(
-        f"/api/v1/companies/{company_id}/score"
-    )
+    response = await authenticated_client.get(f"/api/v1/companies/{company_id}/score")
     assert response.status_code == 200
     assert "score" in response.json()

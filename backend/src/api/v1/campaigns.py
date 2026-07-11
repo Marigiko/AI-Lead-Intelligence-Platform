@@ -189,5 +189,6 @@ async def get_stats(
     use_cases = OutreachUseCases(session, user.tenant_id)
     return await use_cases.get_campaign_stats(campaign_id)
 
+
 if TYPE_CHECKING:
     from src.api.dependencies import CurrentUser, DBSession

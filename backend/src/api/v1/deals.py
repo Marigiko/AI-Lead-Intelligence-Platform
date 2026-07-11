@@ -222,5 +222,6 @@ async def get_stats(
     use_cases = CRMUseCases(session, user.tenant_id)
     return await use_cases.get_stats()
 
+
 if TYPE_CHECKING:
     from src.api.dependencies import CurrentUser, DBSession
