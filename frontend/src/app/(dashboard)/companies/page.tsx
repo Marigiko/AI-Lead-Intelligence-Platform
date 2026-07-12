@@ -1,82 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { Building2, Search, Filter, ExternalLink, Phone, Mail } from "lucide-react";
-
-const companies = [
-  {
-    id: "1",
-    name: "Constructora Chaco SRL",
-    domain: null,
-    industry: "Construccion",
-    city: "Resistencia",
-    score: 95,
-    status: "discovered",
-  },
-  {
-    id: "2",
-    name: "Transporte Pesado del Norte",
-    domain: null,
-    industry: "Logistica",
-    city: "Fontana",
-    score: 91,
-    status: "discovered",
-  },
-  {
-    id: "3",
-    name: "Clinica Dental Sonrisa",
-    domain: null,
-    industry: "Salud",
-    city: "Corrientes",
-    score: 88,
-    status: "enriched",
-  },
-  {
-    id: "4",
-    name: "Restaurante La Parrilla del Norte",
-    domain: "laparrilladelnorte.com.ar",
-    industry: "Gastronomia",
-    city: "Resistencia",
-    score: 85,
-    status: "enriched",
-  },
-  {
-    id: "5",
-    name: "Estudio Juridico Moreno & Asoc.",
-    domain: "moreno-abogados.com.ar",
-    industry: "Legal",
-    city: "Resistencia",
-    score: 82,
-    status: "scored",
-  },
-  {
-    id: "6",
-    name: "Distribuidora El Norte",
-    domain: "distribuidoraelnorte.com",
-    industry: "Distribucion",
-    city: "Resistencia",
-    score: 78,
-    status: "enriched",
-  },
-  {
-    id: "7",
-    name: "Instituto de Educacion Secundaria",
-    domain: null,
-    industry: "Educacion",
-    city: "Resistencia",
-    score: 72,
-    status: "discovered",
-  },
-  {
-    id: "8",
-    name: "Frigorifico Chaco S.A.",
-    domain: "frigorificochaco.com.ar",
-    industry: "Alimentos",
-    city: "Resistencia",
-    score: 70,
-    status: "enriched",
-  },
-];
+import { useState, useEffect } from "react";
+import { Building2, Search, Loader2 } from "lucide-react";
+import { api } from "@/lib/api-client";
+import type { Company, CompanyListResponse } from "@/lib/types";
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -85,10 +12,7 @@ function ScoreBadge({ score }: { score: number }) {
       : score >= 60
       ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
       : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-
-  return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${color}`}>{score}</span>
-  );
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${color}`}>{score}</span>;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -105,25 +29,46 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function CompaniesPage() {
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [industryFilter, setIndustryFilter] = useState("");
 
+  useEffect(() => {
+    loadCompanies();
+  }, []);
+
+  async function loadCompanies() {
+    try {
+      setLoading(true);
+      const params: Record<string, string> = { limit: "100" };
+      if (search) params.search = search;
+      if (industryFilter) params.industry = industryFilter;
+      const data = await api.get<CompanyListResponse>("/api/v1/companies", params);
+      setCompanies(data.items);
+      setTotal(data.total);
+    } catch (err) {
+      console.error("Failed to load companies:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const industries = [...new Set(companies.map((c) => c.industry).filter(Boolean))] as string[];
+
   const filtered = companies.filter((c) => {
-    if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
     if (industryFilter && c.industry !== industryFilter) return false;
     return true;
   });
-
-  const industries = [...new Set(companies.map((c) => c.industry))];
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Empresas</h1>
-        <p className="text-muted-foreground">Todas las empresas descubiertas y enriquecidas</p>
+        <p className="text-muted-foreground">{total} empresas en tu base de datos</p>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -132,80 +77,67 @@ export default function CompaniesPage() {
             placeholder="Buscar empresas..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && loadCompanies()}
             className="w-full pl-10 pr-4 py-2 rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
         <select
           value={industryFilter}
-          onChange={(e) => setIndustryFilter(e.target.value)}
+          onChange={(e) => { setIndustryFilter(e.target.value); setTimeout(loadCompanies, 100); }}
           className="px-3 py-2 rounded-md border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">Todas las industrias</option>
           {industries.map((ind) => (
-            <option key={ind} value={ind}>
-              {ind}
-            </option>
+            <option key={ind} value={ind}>{ind}</option>
           ))}
         </select>
       </div>
 
-      {/* Companies Table */}
-      <div className="bg-card rounded-lg border overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b bg-muted/50">
-              <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Empresa</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden md:table-cell">Industria</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden lg:table-cell">Ubicacion</th>
-              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground">Score</th>
-              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground hidden sm:table-cell">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((company) => (
-              <tr
-                key={company.id}
-                className="border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer"
-              >
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-                      <Building2 size={14} className="text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{company.name}</p>
-                      {company.domain && (
-                        <p className="text-xs text-muted-foreground">{company.domain}</p>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
-                  {company.industry}
-                </td>
-                <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
-                  {company.city}
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <ScoreBadge score={company.score} />
-                </td>
-                <td className="px-4 py-3 text-center hidden sm:table-cell">
-                  <StatusBadge status={company.status} />
-                </td>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 size={24} className="animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="bg-card rounded-lg border overflow-hidden">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Empresa</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden md:table-cell">Industria</th>
+                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden lg:table-cell">Ubicacion</th>
+                <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground">Score</th>
+                <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground hidden sm:table-cell">Estado</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-        {filtered.length === 0 && (
-          <div className="p-8 text-center text-muted-foreground">
-            No se encontraron empresas
-          </div>
-        )}
-      </div>
+            </thead>
+            <tbody>
+              {filtered.map((company) => (
+                <tr key={company.id} className="border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
+                        <Building2 size={14} className="text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{company.name}</p>
+                        {company.domain && <p className="text-xs text-muted-foreground">{company.domain}</p>}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">{company.industry || "-"}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">{company.city || "-"}</td>
+                  <td className="px-4 py-3 text-center"><ScoreBadge score={company.opportunity_score} /></td>
+                  <td className="px-4 py-3 text-center hidden sm:table-cell"><StatusBadge status={company.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filtered.length === 0 && (
+            <div className="p-8 text-center text-muted-foreground">No se encontraron empresas</div>
+          )}
+        </div>
+      )}
 
-      <div className="text-sm text-muted-foreground">
-        Mostrando {filtered.length} de {companies.length} empresas
-      </div>
+      <div className="text-sm text-muted-foreground">Mostrando {filtered.length} de {total} empresas</div>
     </div>
   );
 }

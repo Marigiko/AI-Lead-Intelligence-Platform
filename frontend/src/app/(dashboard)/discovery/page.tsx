@@ -1,38 +1,66 @@
 "use client";
 
 import { useState } from "react";
-import { Search, MapPin, Target, Loader2 } from "lucide-react";
+import { Search, MapPin, Target, Loader2, CheckCircle2 } from "lucide-react";
+import { api } from "@/lib/api-client";
 
 const intentExamples = [
   "Empresas que necesiten una pagina web",
   "Empresas con sitios web obsoletos",
-  "Empresas que puedan automatizar procesos con IA",
   "Empresas sin presencia digital",
   "Empresas con malas resenas",
   "Empresas sin Google Business",
-  "Empresas sin e-commerce",
+  "Restaurantes",
+  "Hoteles",
+  "Clinicas dentales",
 ];
 
+interface SearchResult {
+  search_id: string;
+  status: string;
+  companies_found: number;
+  companies_new: number;
+  sources_used: string[];
+  error: string | null;
+}
+
 export default function DiscoveryPage() {
-  const [location, setLocation] = useState("");
-  const [radius, setRadius] = useState("50");
+  const [location, setLocation] = useState("Resistencia, Chaco, Argentina");
+  const [radius, setRadius] = useState("5");
   const [intent, setIntent] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [result, setResult] = useState<SearchResult | null>(null);
+  const [error, setError] = useState("");
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!location || !intent) return;
+
     setIsSearching(true);
-    // TODO: Phase 2 — connect to API
-    setTimeout(() => setIsSearching(false), 2000);
+    setError("");
+    setResult(null);
+
+    try {
+      const data = await api.post<SearchResult>("/api/v1/discovery/search", {
+        location,
+        radius_km: parseInt(radius),
+        intent,
+        max_results: 50,
+        sources: ["openstreetmap"],
+      });
+      setResult(data);
+    } catch (err: any) {
+      setError(err.message || "Error en la busqueda");
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Descubrimiento</h1>
-        <p className="text-muted-foreground">
-          Encuentra empresas automaticamente con IA
-        </p>
+        <p className="text-muted-foreground">Encuentra empresas automaticamente con IA</p>
       </div>
 
       {/* Search Form */}
@@ -48,26 +76,23 @@ export default function DiscoveryPage() {
                 type="text"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="Ej: Resistencia, Chaco o 50km de Corrientes Capital"
+                placeholder="Ej: Resistencia, Chaco, Argentina"
                 className="w-full px-3 py-2 rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
-                Radio (km)
-              </label>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Radio (km)</label>
               <select
                 value={radius}
                 onChange={(e) => setRadius(e.target.value)}
                 className="w-full px-3 py-2 rounded-md border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               >
+                <option value="3">3 km</option>
+                <option value="5">5 km</option>
                 <option value="10">10 km</option>
                 <option value="25">25 km</option>
                 <option value="50">50 km</option>
-                <option value="100">100 km</option>
-                <option value="200">200 km</option>
-                <option value="500">Todo la provincia</option>
               </select>
             </div>
           </div>
@@ -80,13 +105,12 @@ export default function DiscoveryPage() {
             <textarea
               value={intent}
               onChange={(e) => setIntent(e.target.value)}
-              placeholder="Ej: Empresas con pagina web vieja que necesiten actualizacion, o empresas sin presencia digital que puedan necesitar marketing"
+              placeholder="Ej: restaurantes, hoteles, clinicas, empresas sin web..."
               className="w-full px-3 py-2 rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring min-h-[80px]"
               required
             />
           </div>
 
-          {/* Intent Examples */}
           <div>
             <p className="text-xs text-muted-foreground mb-2">Ejemplos:</p>
             <div className="flex flex-wrap gap-2">
@@ -109,48 +133,48 @@ export default function DiscoveryPage() {
             className="flex items-center gap-2 px-6 py-2.5 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {isSearching ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Buscando...
-              </>
+              <><Loader2 size={16} className="animate-spin" /> Buscando...</>
             ) : (
-              <>
-                <Search size={16} />
-                Buscar Empresas
-              </>
+              <><Search size={16} /> Buscar Empresas</>
             )}
           </button>
         </form>
       </div>
 
-      {/* Search History */}
-      <div className="bg-card rounded-lg border">
-        <div className="p-4 border-b">
-          <h2 className="font-semibold text-foreground">Busquedas Recientes</h2>
-        </div>
-        <div className="p-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between p-3 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer">
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  "Empresas con web obsoleta" en Resistencia, 50km
-                </p>
-                <p className="text-xs text-muted-foreground">Hace 2 horas &middot; 247 resultados</p>
-              </div>
-              <span className="text-xs text-green-600 dark:text-green-400 font-medium">Completado</span>
+      {/* Results */}
+      {error && (
+        <div className="bg-destructive/10 text-destructive text-sm rounded-md p-4">{error}</div>
+      )}
+
+      {result && (
+        <div className="bg-card rounded-lg border p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckCircle2 size={20} className="text-green-500" />
+            <h2 className="font-semibold text-foreground">Busqueda Completada</h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-3 rounded-md bg-muted/30 text-center">
+              <p className="text-2xl font-bold text-foreground">{result.companies_found}</p>
+              <p className="text-xs text-muted-foreground">Encontradas</p>
             </div>
-            <div className="flex items-center justify-between p-3 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer">
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  "Empresas sin presencia digital" en Corrientes Capital
-                </p>
-                <p className="text-xs text-muted-foreground">Ayer &middot; 89 resultados</p>
-              </div>
-              <span className="text-xs text-green-600 dark:text-green-400 font-medium">Completado</span>
+            <div className="p-3 rounded-md bg-muted/30 text-center">
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{result.companies_new}</p>
+              <p className="text-xs text-muted-foreground">Nuevas</p>
+            </div>
+            <div className="p-3 rounded-md bg-muted/30 text-center">
+              <p className="text-2xl font-bold text-foreground">{result.sources_used.length}</p>
+              <p className="text-xs text-muted-foreground">Fuentes</p>
+            </div>
+            <div className="p-3 rounded-md bg-muted/30 text-center">
+              <p className="text-2xl font-bold text-foreground">{result.status}</p>
+              <p className="text-xs text-muted-foreground">Estado</p>
             </div>
           </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            Fuentes: {result.sources_used.join(", ")}
+          </p>
         </div>
-      </div>
+      )}
     </div>
   );
 }

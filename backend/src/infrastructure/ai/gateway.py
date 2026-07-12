@@ -1,5 +1,6 @@
 """
-AI Gateway — unified interface for multiple LLM providers via LiteLLM.
+AI Gateway — unified interface for LLM providers.
+Supports OpenAI-compatible APIs (LongCat, OpenAI, etc.) and LiteLLM.
 """
 from __future__ import annotations
 
@@ -26,20 +27,22 @@ class AIResponse:
 
 
 class AIGateway:
-    """Unified AI interface with model routing, fallback, and cost tracking."""
+    """Unified AI interface with model routing and fallback."""
 
     def __init__(self) -> None:
         self._client = None
 
     def _get_client(self):
         if self._client is None:
+            settings = get_settings()
             try:
-                import litellm
-                litellm.success_callback = []
-                litellm.failure_callback = []
-                self._client = litellm
+                from openai import AsyncOpenAI
+                self._client = AsyncOpenAI(
+                    api_key=settings.openai_api_key,
+                    base_url=getattr(settings, 'openai_api_base', None) or "https://api.openai.com/v1",
+                )
             except ImportError:
-                logger.error("litellm_not_installed")
+                logger.error("openai_not_installed")
                 raise
         return self._client
 
@@ -58,24 +61,40 @@ class AIGateway:
         client = self._get_client()
 
         try:
+            # If JSON requested, append instruction to system message instead of using response_format
+            # (some providers don't support response_format properly)
+            processed_messages = list(messages)
+            if response_format == "json":
+                for i, msg in enumerate(processed_messages):
+                    if msg.get("role") == "system":
+                        processed_messages[i] = {**msg, "content": msg["content"] + "\n\nIMPORTANT: You MUST respond with valid JSON only. No markdown, no code fences, just raw JSON."}
+                        break
+                else:
+                    processed_messages.insert(0, {"role": "system", "content": "Respond with valid JSON only. No markdown, no code fences, just raw JSON."})
+
             kwargs: dict[str, Any] = {
                 "model": model,
-                "messages": messages,
+                "messages": processed_messages,
                 "temperature": temperature,
                 "max_tokens": max_tokens,
             }
-            if response_format == "json":
-                kwargs["response_format"] = {"type": "json_object"}
 
-            response = client.completion(**kwargs)
+            response = await client.chat.completions.create(**kwargs)
 
             content = response.choices[0].message.content or ""
-            usage = getattr(response, "usage", None)
+            # Strip markdown code fences if present
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1] if "\n" in content else content[3:]
+                if content.endswith("```"):
+                    content = content[:-3]
+                content = content.strip()
+
+            usage = response.usage
 
             return AIResponse(
                 content=content,
                 model=response.model,
-                provider=response.model.split("/")[0] if "/" in response.model else "unknown",
+                provider="longcat" if "longcat" in (settings.openai_api_base or "") else "openai",
                 tokens_used=usage.total_tokens if usage else 0,
                 finish_reason=response.choices[0].finish_reason or "",
                 raw={"id": response.id},
@@ -83,13 +102,6 @@ class AIGateway:
 
         except Exception as e:
             logger.error("ai_gateway_error", model=model, error=str(e))
-            # Fallback to default model
-            if model != settings.ai_default_model:
-                logger.info("ai_fallback", from_model=model, to_model=settings.ai_default_model)
-                return await self.complete(
-                    messages, model=settings.ai_default_model,
-                    temperature=temperature, max_tokens=max_tokens,
-                )
             raise
 
     async def analyze_company(
@@ -154,20 +166,44 @@ class AIGateway:
             messages,
             model=settings.ai_smart_model,
             temperature=0.3,
+            max_tokens=4000,
             response_format="json",
         )
 
         import json
+        import re
+
+        content = response.content.strip()
+
+        # Try parsing directly
         try:
-            return json.loads(response.content)
+            return json.loads(content)
         except json.JSONDecodeError:
-            logger.error("ai_invalid_json", content=response.content[:200])
-            return {
-                "opportunity_score": 50,
-                "analysis": response.content,
-                "recommended_services": [],
-                "estimated_deal_value": 0,
-            }
+            pass
+
+        # Try extracting JSON from markdown code fences
+        json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', content, re.DOTALL)
+        if json_match:
+            try:
+                return json.loads(json_match.group(1).strip())
+            except json.JSONDecodeError:
+                pass
+
+        # Try finding first { ... } block
+        brace_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if brace_match:
+            try:
+                return json.loads(brace_match.group(0))
+            except json.JSONDecodeError:
+                pass
+
+        logger.error("ai_invalid_json", content=content[:200])
+        return {
+            "opportunity_score": 50,
+            "analysis": content,
+            "recommended_services": [],
+            "estimated_deal_value": 0,
+        }
 
 
 # Singleton

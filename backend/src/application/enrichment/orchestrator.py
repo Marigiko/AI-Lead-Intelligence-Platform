@@ -97,13 +97,6 @@ class EnrichmentOrchestrator:
         company.last_enriched_at = datetime.now(timezone.utc)
         await self._company_repo.update(company)
 
-        # Emit event
-        await self._event_bus.publish(CompanyEnriched(
-            tenant_id=self._tenant_id,
-            company_id=company_id,
-            fields_updated=updated_fields,
-        ))
-
         await self._session.commit()
 
         logger.info(

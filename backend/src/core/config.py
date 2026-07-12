@@ -48,10 +48,11 @@ class Settings(BaseSettings):
 
     # AI Providers
     openai_api_key: str = ""
+    openai_api_base: str = ""
     anthropic_api_key: str = ""
     google_ai_api_key: str = ""
-    ai_default_model: str = "openai/gpt-4o-mini"
-    ai_smart_model: str = "openai/gpt-4o"
+    ai_default_model: str = "LongCat-2.0"
+    ai_smart_model: str = "LongCat-2.0"
     ai_embedding_model: str = "openai/text-embedding-3-small"
 
     # Scraping

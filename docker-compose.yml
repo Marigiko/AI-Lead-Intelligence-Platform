@@ -11,6 +11,10 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://leadplatform:leadplatform@postgres:5432/leadplatform
       - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=ak_2Mm54a5OL3Dh9EL6bx8Va8sa9cn8w
+      - OPENAI_API_BASE=https://api.longcat.chat/openai/v1
+      - AI_DEFAULT_MODEL=LongCat-2.0
+      - AI_SMART_MODEL=LongCat-2.0
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,6 +50,10 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://leadplatform:leadplatform@postgres:5432/leadplatform
       - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=ak_2Mm54a5OL3Dh9EL6bx8Va8sa9cn8w
+      - OPENAI_API_BASE=https://api.longcat.chat/openai/v1
+      - AI_DEFAULT_MODEL=LongCat-2.0
+      - AI_SMART_MODEL=LongCat-2.0
     depends_on:
       postgres:
         condition: service_healthy

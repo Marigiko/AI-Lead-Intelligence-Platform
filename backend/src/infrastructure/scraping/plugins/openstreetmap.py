@@ -53,6 +53,7 @@ class OpenStreetMapScraper(BaseScraper):
                 resp = await client.post(
                     self.OVERPASS_URL,
                     data={"data": query},
+                    headers={"Accept": "application/json"},
                 )
                 resp.raise_for_status()
                 data = resp.json()
