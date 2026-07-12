@@ -2,20 +2,23 @@
 Abstract base class for all scraper plugins.
 Every source plugin must implement this interface.
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from playwright.async_api import BrowserContext
+if TYPE_CHECKING:
+    from playwright.async_api import BrowserContext
 
-from src.infrastructure.scraping.engine import ScrapeResult
+    from src.infrastructure.scraping.engine import ScrapeResult
 
 
 @dataclass
 class ScraperConfig:
     """Configuration passed to a scraper plugin."""
+
     location: str = ""
     latitude: float | None = None
     longitude: float | None = None
@@ -23,7 +26,7 @@ class ScraperConfig:
     query: str = ""
     max_results: int = 100
     language: str = "es"
-    extra_params: dict[str, Any] = field(default_factory=dict)
+    extra_params: dict[str, Any] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
 
 
 class BaseScraper(ABC):
@@ -61,17 +64,15 @@ class BaseScraper(ABC):
         """
         ...
 
-    async def validate_config(self, config: ScraperConfig) -> str | None:
+    async def validate_config(self, config: ScraperConfig) -> str | None:  # noqa: ARG002
         """Validate config before scraping. Return error message or None."""
         return None
 
-    async def on_before_scrape(self, config: ScraperConfig) -> None:
+    async def on_before_scrape(self, config: ScraperConfig) -> None:  # noqa: B027
         """Hook called before scraping starts."""
-        pass
 
-    async def on_after_scrape(self, results: list[ScrapeResult]) -> None:
+    async def on_after_scrape(self, results: list[ScrapeResult]) -> None:  # noqa: B027
         """Hook called after scraping completes."""
-        pass
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize plugin metadata."""

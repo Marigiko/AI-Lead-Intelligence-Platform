@@ -1,25 +1,21 @@
 """
 Outreach application use cases.
 """
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.application.outreach.dto import (
     CampaignDTO,
     CreateCampaignRequest,
-    GenerateMessageRequest,
     GeneratedMessageDTO,
 )
 from src.domain.campaign.models import Campaign, CampaignLead
-from src.domain.campaign.repository import CampaignRepository, CampaignLeadRepository
-from src.domain.company.repository import CompanyRepository
 from src.infrastructure.ai.message_generator import get_message_generator
 from src.infrastructure.database.repositories.campaign_repo import (
     SQLAlchemyCampaignLeadRepository,
@@ -27,6 +23,12 @@ from src.infrastructure.database.repositories.campaign_repo import (
 )
 from src.infrastructure.database.repositories.company_repo import SQLAlchemyCompanyRepository
 from src.infrastructure.email.sender import EmailMessage, get_email_sender
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from src.domain.campaign.repository import CampaignLeadRepository, CampaignRepository
+    from src.domain.company.repository import CompanyRepository
 
 logger = structlog.get_logger()
 
@@ -74,22 +76,25 @@ class OutreachUseCases:
         )
         dtos = [
             CampaignDTO(
-                id=c.id, name=c.name, type=c.type, status=c.status,
-                subject=c.subject, stats=c.stats, created_at=c.created_at,
+                id=c.id,
+                name=c.name,
+                type=c.type,
+                status=c.status,
+                subject=c.subject,
+                stats=c.stats,
+                created_at=c.created_at,
             )
             for c in campaigns
         ]
         return dtos, total
 
-    async def add_leads_to_campaign(
-        self, campaign_id: UUID, company_ids: list[UUID]
-    ) -> int:
+    async def add_leads_to_campaign(self, campaign_id: UUID, company_ids: list[UUID]) -> int:
         """Add companies as leads to a campaign."""
         campaign = await self._campaign_repo.get_by_id(campaign_id)
         if not campaign or campaign.tenant_id != self._tenant_id:
             return 0
 
-        leads = []
+        leads: list[CampaignLead] = []
         for cid in company_ids:
             company = await self._company_repo.get_by_id(cid)
             if not company:
@@ -125,7 +130,7 @@ class OutreachUseCases:
             return []
 
         leads = await self._lead_repo.list_by_campaign(campaign_id, status="pending")
-        generated = []
+        generated: list[GeneratedMessageDTO] = []
 
         for lead in leads:
             if not lead.company_id:
@@ -160,20 +165,22 @@ class OutreachUseCases:
                 lead.message_content = msg.body
                 await self._lead_repo.update(lead)
 
-                generated.append(GeneratedMessageDTO(
-                    subject=msg.subject,
-                    body=msg.body,
-                    channel="email",
-                    company_id=lead.company_id,
-                    personalization_notes=msg.personalization_notes,
-                ))
+                generated.append(
+                    GeneratedMessageDTO(
+                        subject=msg.subject,
+                        body=msg.body,
+                        channel="email",
+                        company_id=lead.company_id,
+                        personalization_notes=msg.personalization_notes,
+                    )
+                )
             except Exception as e:
                 logger.error("message_generation_failed", lead_id=str(lead.id), error=str(e))
 
         await self._session.commit()
         return generated
 
-    async def send_campaign(self, campaign_id: UUID) -> dict:
+    async def send_campaign(self, campaign_id: UUID) -> dict[str, Any]:
         """Send all pending messages in a campaign."""
         campaign = await self._campaign_repo.get_by_id(campaign_id)
         if not campaign or campaign.tenant_id != self._tenant_id:
@@ -222,7 +229,7 @@ class OutreachUseCases:
             "total": len(leads),
         }
 
-    async def get_campaign_stats(self, campaign_id: UUID) -> dict:
+    async def get_campaign_stats(self, campaign_id: UUID) -> dict[str, Any]:
         """Get detailed campaign statistics."""
         campaign = await self._campaign_repo.get_by_id(campaign_id)
         if not campaign or campaign.tenant_id != self._tenant_id:

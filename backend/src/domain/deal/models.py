@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, date
+from datetime import date, datetime  # noqa: TC003
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.database import Base

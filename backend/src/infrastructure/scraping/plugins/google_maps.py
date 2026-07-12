@@ -1,13 +1,16 @@
 """
 Google Maps scraper plugin — discovers businesses via Google Maps.
 """
+
 from __future__ import annotations
 
+import contextlib
 import re
 from typing import Any
 
 import structlog
-from playwright.async_api import BrowserContext, Page, TimeoutError as PlaywrightTimeout
+from playwright.async_api import BrowserContext, Page
+from playwright.async_api import TimeoutError as PlaywrightTimeout
 
 from src.infrastructure.scraping.engine import ScrapeResult
 from src.infrastructure.scraping.plugins.base import BaseScraper, ScraperConfig
@@ -42,13 +45,11 @@ class GoogleMapsScraper(BaseScraper):
             await page.wait_for_timeout(2000)
 
             # Accept cookies if prompted
-            try:
+            with contextlib.suppress(Exception):
                 cookie_btn = page.locator('button:has-text("Aceptar"), button:has-text("Accept")')
                 if await cookie_btn.count() > 0:
                     await cookie_btn.first.click()
                     await page.wait_for_timeout(1000)
-            except Exception:
-                pass
 
             # Type search query
             search_box = page.locator('#searchboxinput, input[name="search"]')
@@ -75,9 +76,7 @@ class GoogleMapsScraper(BaseScraper):
             parts.append(config.location)
         return " ".join(parts)
 
-    async def _collect_results(
-        self, page: Page, max_results: int
-    ) -> list[ScrapeResult]:
+    async def _collect_results(self, page: Page, max_results: int) -> list[ScrapeResult]:
         results: list[ScrapeResult] = []
         seen_names: set[str] = set()
 
@@ -102,7 +101,7 @@ class GoogleMapsScraper(BaseScraper):
                 if len(results) >= max_results:
                     break
 
-                try:
+                with contextlib.suppress(Exception):
                     item = items.nth(i)
                     name = await item.get_attribute("aria-label") or ""
                     name = name.strip()
@@ -127,8 +126,6 @@ class GoogleMapsScraper(BaseScraper):
                         source_id=place_id,
                     )
                     results.append(result)
-                except Exception:
-                    continue
 
             # Scroll down
             try:
@@ -138,7 +135,7 @@ class GoogleMapsScraper(BaseScraper):
                 break
 
             # Check if we've reached the end
-            end_indicator = page.locator('.HlvSq')
+            end_indicator = page.locator(".HlvSq")
             if await end_indicator.count() > 0:
                 break
 
@@ -164,72 +161,62 @@ class GoogleMapsScraper(BaseScraper):
         details: dict[str, Any] = {}
 
         # Extract address
-        try:
+        with contextlib.suppress(Exception):
             addr = page.locator('button[data-item-id="address"] .Io6YTe, [data-item-id="address"]')
             if await addr.count() > 0:
                 details["address"] = (await addr.first.inner_text()).strip()
-        except Exception:
-            pass
 
         # Extract phone
-        try:
+        with contextlib.suppress(Exception):
             phone = page.locator('button[data-item-id*="phone"] .Io6YTe, [data-item-id*="phone"]')
             if await phone.count() > 0:
                 details["phone"] = (await phone.first.inner_text()).strip()
-        except Exception:
-            pass
 
         # Extract website
-        try:
-            website = page.locator('a[data-item-id="authority"] .Io6YTe, [data-item-id="authority"]')
+        with contextlib.suppress(Exception):
+            website = page.locator(
+                'a[data-item-id="authority"] .Io6YTe, [data-item-id="authority"]'
+            )
             if await website.count() > 0:
                 details["website"] = (await website.first.inner_text()).strip()
-        except Exception:
-            pass
 
         # Extract rating
-        try:
+        with contextlib.suppress(Exception):
             rating = page.locator('.MW4etd, span[role="img"][aria-label*="estrellas"]')
             if await rating.count() > 0:
                 rating_text = await rating.first.inner_text()
                 match = re.search(r"([\d.]+)", rating_text)
                 if match:
                     details["google_rating"] = float(match.group(1))
-        except Exception:
-            pass
 
         # Extract review count
-        try:
+        with contextlib.suppress(Exception):
             reviews = page.locator('.UY7F9, span[aria-label*="reseñas"]')
             if await reviews.count() > 0:
                 review_text = await reviews.first.inner_text()
                 match = re.search(r"([\d.]+)", review_text.replace(".", ""))
                 if match:
                     details["google_review_count"] = int(match.group(1))
-        except Exception:
-            pass
 
         # Extract categories
-        try:
+        with contextlib.suppress(Exception):
             cats = page.locator('.DkEaL, button[jsaction*="category"]')
             if await cats.count() > 0:
-                categories = []
+                categories: list[str] = []
                 for j in range(await cats.count()):
                     cat_text = await cats.nth(j).inner_text()
                     if cat_text.strip():
                         categories.append(cat_text.strip())
                 if categories:
                     details["google_categories"] = categories
-        except Exception:
-            pass
 
         # Extract hours
-        try:
+        with contextlib.suppress(Exception):
             hours_btn = page.locator('button[data-item-id*="hours"]')
             if await hours_btn.count() > 0:
                 await hours_btn.first.click()
                 await page.wait_for_timeout(1000)
-                hours_rows = page.locator('.y0RxZc table tr')
+                hours_rows = page.locator(".y0RxZc table tr")
                 hours = {}
                 for j in range(await hours_rows.count()):
                     row = hours_rows.nth(j)
@@ -240,8 +227,6 @@ class GoogleMapsScraper(BaseScraper):
                         hours[day] = time_range
                 if hours:
                     details["business_hours"] = hours
-        except Exception:
-            pass
 
         return details if details else None
 

@@ -1,20 +1,19 @@
-"""
-Conversations (SDR) API routes.
-"""
-from __future__ import annotations
-
+import contextlib
+from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from src.api.dependencies import CurrentUser, DBSession
 from src.application.sdr.use_cases import SDRUseCases
+from src.core.security import TokenPayload
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
 
 
 # --- DTOs ---
+
 
 class CreateConversationRequest(BaseModel):
     company_id: UUID
@@ -68,6 +67,7 @@ class HandleMessageResponse(BaseModel):
 
 # --- Routes ---
 
+
 @router.get("", response_model=ConversationListResponse)
 async def list_conversations(
     user: CurrentUser,
@@ -75,7 +75,9 @@ async def list_conversations(
     status: str | None = None,
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
-):
+) -> ConversationListResponse:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = SDRUseCases(session, user.tenant_id)
     items, total = await use_cases.list_conversations(status=status, offset=offset, limit=limit)
     return ConversationListResponse(
@@ -89,7 +91,9 @@ async def create_conversation(
     data: CreateConversationRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, Any]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = SDRUseCases(session, user.tenant_id)
     return await use_cases.create_conversation(
         company_id=data.company_id,
@@ -104,7 +108,9 @@ async def get_messages(
     conversation_id: UUID,
     user: CurrentUser,
     session: DBSession,
-):
+) -> list[MessageResponse]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = SDRUseCases(session, user.tenant_id)
     messages = await use_cases.get_conversation_messages(conversation_id)
     return [MessageResponse(**m) for m in messages]
@@ -116,8 +122,10 @@ async def send_message(
     data: SendMessageRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> HandleMessageResponse:
     """Send a message and get AI response."""
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = SDRUseCases(session, user.tenant_id)
     result = await use_cases.handle_incoming_message(
         conversation_id=conversation_id,
@@ -133,13 +141,16 @@ async def human_takeover(
     data: SendMessageRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, Any]:
     """Human takes over the conversation."""
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = SDRUseCases(session, user.tenant_id)
     return await use_cases.human_intervention(conversation_id, data.message)
 
 
 # --- WebSocket for real-time updates ---
+
 
 class ConnectionManager:
     def __init__(self):
@@ -155,25 +166,42 @@ class ConnectionManager:
         if conversation_id in self.active_connections:
             self.active_connections[conversation_id].remove(websocket)
 
-    async def broadcast(self, conversation_id: str, message: dict):
+    async def broadcast(self, conversation_id: str, message: dict[str, Any]):
         if conversation_id in self.active_connections:
             for connection in self.active_connections[conversation_id]:
-                try:
+                with contextlib.suppress(Exception):
                     await connection.send_json(message)
-                except Exception:
-                    pass
 
 
 manager = ConnectionManager()
 
 
+async def _ws_get_token(websocket: WebSocket) -> TokenPayload:
+    from src.core.security import decode_token
+
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Missing token")
+        raise WebSocketDisconnect(code=4001)  # type: ignore[misc]
+    payload = decode_token(token)
+    if not payload or payload.type.value != "access":
+        await websocket.close(code=4001, reason="Invalid token")
+        raise WebSocketDisconnect(code=4001)  # type: ignore[misc]
+    return payload
+
+
 @router.websocket("/ws/{conversation_id}")
 async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
+    try:
+        await _ws_get_token(websocket)
+    except WebSocketDisconnect:
+        return
+
+    await websocket.accept()
     await manager.connect(websocket, conversation_id)
     try:
         while True:
             data = await websocket.receive_json()
-            # Echo back for now — will be enhanced with real-time AI responses
             await websocket.send_json({"type": "ack", "data": data})
     except WebSocketDisconnect:
         manager.disconnect(websocket, conversation_id)

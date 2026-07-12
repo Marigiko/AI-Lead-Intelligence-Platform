@@ -1,28 +1,33 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import structlog
+
 from src.workers.celery_app import celery_app
 
 logger = structlog.get_logger()
 
 
-@celery_app.task(name="src.workers.enrichment_tasks.enrich_company")
-def enrich_company(company_id: str) -> dict:
+@celery_app.task(name="src.workers.enrichment_tasks.enrich_company")  # type: ignore[reportUntypedFunctionDecorator]
+def enrich_company(company_id: str) -> dict[str, Any]:
     """Enrich a company with tech stack, SEO, contacts, etc."""
     logger.info("enrichment_started", company_id=company_id)
 
     async def _run():
         from uuid import UUID
-        from src.core.database import get_session_factory
+
         from src.application.enrichment.orchestrator import EnrichmentOrchestrator
-        from src.domain.user.models import User
+        from src.core.database import get_session_factory
 
         factory = get_session_factory()
         async with factory() as session:
             # Get tenant_id from company
-            from src.infrastructure.database.repositories.company_repo import SQLAlchemyCompanyRepository
+            from src.infrastructure.database.repositories.company_repo import (
+                SQLAlchemyCompanyRepository,
+            )
+
             company_repo = SQLAlchemyCompanyRepository(session)
             company = await company_repo.get_by_id(UUID(company_id))
             if not company:
@@ -34,19 +39,23 @@ def enrich_company(company_id: str) -> dict:
     return asyncio.run(_run())
 
 
-@celery_app.task(name="src.workers.enrichment_tasks.analyze_company")
-def analyze_company_task(company_id: str) -> dict:
+@celery_app.task(name="src.workers.enrichment_tasks.analyze_company")  # type: ignore[reportUntypedFunctionDecorator]
+def analyze_company_task(company_id: str) -> dict[str, Any]:
     """Enrich + AI analyze + score a company."""
     logger.info("analysis_started", company_id=company_id)
 
     async def _run():
         from uuid import UUID
-        from src.core.database import get_session_factory
+
         from src.application.enrichment.orchestrator import EnrichmentOrchestrator
+        from src.core.database import get_session_factory
 
         factory = get_session_factory()
         async with factory() as session:
-            from src.infrastructure.database.repositories.company_repo import SQLAlchemyCompanyRepository
+            from src.infrastructure.database.repositories.company_repo import (
+                SQLAlchemyCompanyRepository,
+            )
+
             company_repo = SQLAlchemyCompanyRepository(session)
             company = await company_repo.get_by_id(UUID(company_id))
             if not company:

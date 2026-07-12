@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from enum import Enum
-from typing import Any
-from uuid import UUID
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
+from typing import TYPE_CHECKING
 
 import bcrypt
 from jose import JWTError, jwt
@@ -11,8 +10,11 @@ from pydantic import BaseModel
 
 from src.core.config import get_settings
 
+if TYPE_CHECKING:
+    from uuid import UUID
 
 # --- Password ---
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -24,7 +26,8 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 # --- JWT ---
 
-class TokenType(str, Enum):
+
+class TokenType(StrEnum):
     ACCESS = "access"
     REFRESH = "refresh"
 
@@ -45,7 +48,7 @@ def create_access_token(
     expires_delta: timedelta | None = None,
 ) -> str:
     settings = get_settings()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + (expires_delta or timedelta(minutes=settings.jwt_access_token_expire_minutes))
     payload = {
         "sub": str(user_id),
@@ -64,7 +67,7 @@ def create_refresh_token(
     role: str = "member",
 ) -> str:
     settings = get_settings()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expire = now + timedelta(days=settings.jwt_refresh_token_expire_days)
     payload = {
         "sub": str(user_id),
@@ -88,7 +91,8 @@ def decode_token(token: str) -> TokenPayload | None:
 
 # --- RBAC ---
 
-class Role(str, Enum):
+
+class Role(StrEnum):
     OWNER = "owner"
     ADMIN = "admin"
     MEMBER = "member"

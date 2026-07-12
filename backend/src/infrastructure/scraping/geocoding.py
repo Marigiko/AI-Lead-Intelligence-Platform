@@ -2,6 +2,7 @@
 Geocoding service — converts locations to coordinates.
 Uses Nominatim (OpenStreetMap) as primary, with fallback.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

@@ -2,11 +2,10 @@
 Tech stack detection — analyzes a website's technology stack
 from HTTP headers, meta tags, scripts, and patterns.
 """
+
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
-from typing import Any
 
 import httpx
 import structlog
@@ -18,11 +17,12 @@ logger = structlog.get_logger()
 @dataclass
 class TechStackResult:
     """Detected technology stack for a website."""
+
     cms: str | None = None
     framework: str | None = None
     hosting: str | None = None
     language: str | None = None
-    analytics: list[str] = field(default_factory=list)
+    analytics: list[str] = field(default_factory=list[str])
     has_ssl: bool = False
     has_whatsapp: bool = False
     has_chatbot: bool = False
@@ -33,9 +33,9 @@ class TechStackResult:
     has_google_analytics: bool = False
     has_hotjar: bool = False
     has_clarity: bool = False
-    technologies: list[str] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
-    raw_headers: dict[str, str] = field(default_factory=dict)
+    technologies: list[str] = field(default_factory=list[str])
+    errors: list[str] = field(default_factory=list[str])
+    raw_headers: dict[str, str] = field(default_factory=dict[str, str])
 
 
 # Technology detection signatures
@@ -86,26 +86,52 @@ ANALYTICS_SIGNATURES: dict[str, list[str]] = {
 }
 
 ECOMMERCE_SIGNATURES: list[str] = [
-    "woocommerce", "shopify", "cart", "checkout",
-    "add-to-cart", "paypal", "mercadopago", "stripe",
-    "mp-checkout", "carrito", "comprar",
+    "woocommerce",
+    "shopify",
+    "cart",
+    "checkout",
+    "add-to-cart",
+    "paypal",
+    "mercadopago",
+    "stripe",
+    "mp-checkout",
+    "carrito",
+    "comprar",
 ]
 
 WHATSAPP_SIGNATURES: list[str] = [
-    "wa.me", "whatsapp.com", "api.whatsapp.com",
-    "whatsapp://", "whatsapp:",
+    "wa.me",
+    "whatsapp.com",
+    "api.whatsapp.com",
+    "whatsapp://",
+    "whatsapp:",
 ]
 
 CHATBOT_SIGNATURES: list[str] = [
-    "intercom", "crisp", "tawk.to", "zendesk",
-    "drift", "hubspot messenger", "tidio", "livechat",
-    "chatbot", "chat-widget", "msgsndr",
+    "intercom",
+    "crisp",
+    "tawk.to",
+    "zendesk",
+    "drift",
+    "hubspot messenger",
+    "tidio",
+    "livechat",
+    "chatbot",
+    "chat-widget",
+    "msgsndr",
 ]
 
 CRM_SIGNATURES: list[str] = [
-    "hubspot", "salesforce", "pipedrive", "zoho",
-    "freshdesk", "zendesk", "monday.com", "clickup",
-    "gohighlevel", "highlevel",
+    "hubspot",
+    "salesforce",
+    "pipedrive",
+    "zoho",
+    "freshdesk",
+    "zendesk",
+    "monday.com",
+    "clickup",
+    "gohighlevel",
+    "highlevel",
 ]
 
 
@@ -131,7 +157,8 @@ class TechStackDetector:
 
                 # Store raw headers
                 result.raw_headers = {
-                    k: v for k, v in headers.items()
+                    k: v
+                    for k, v in headers.items()
                     if k.lower().startswith(("server", "x-powered", "x-generator", "set-cookie"))
                 }
 
@@ -190,7 +217,7 @@ class TechStackDetector:
         if "wordpress" in generator:
             result.cms = "WordPress"
 
-    def _detect_cms(self, soup: BeautifulSoup, html: str, result: TechStackResult) -> None:
+    def _detect_cms(self, soup: BeautifulSoup, html: str, result: TechStackResult) -> None:  # noqa: ARG002
         for cms, signatures in CMS_SIGNATURES.items():
             for sig in signatures:
                 if sig.lower() in html.lower():
@@ -198,7 +225,7 @@ class TechStackDetector:
                     result.technologies.append(cms)
                     return
 
-    def _detect_framework(self, soup: BeautifulSoup, html: str, result: TechStackResult) -> None:
+    def _detect_framework(self, soup: BeautifulSoup, html: str, result: TechStackResult) -> None:  # noqa: ARG002
         for framework, signatures in FRAMEWORK_SIGNATURES.items():
             for sig in signatures:
                 if sig.lower() in html.lower():
@@ -206,7 +233,7 @@ class TechStackDetector:
                     result.technologies.append(framework)
                     return
 
-    def _detect_analytics(self, soup: BeautifulSoup, html: str, result: TechStackResult) -> None:
+    def _detect_analytics(self, soup: BeautifulSoup, html: str, result: TechStackResult) -> None:  # noqa: ARG002
         for tool, signatures in ANALYTICS_SIGNATURES.items():
             for sig in signatures:
                 if sig.lower() in html.lower():
@@ -231,7 +258,7 @@ class TechStackDetector:
                 result.technologies.append("E-commerce")
                 return
 
-    def _detect_whatsapp(self, soup: BeautifulSoup, html: str, result: TechStackResult) -> None:
+    def _detect_whatsapp(self, soup: BeautifulSoup, html: str, result: TechStackResult) -> None:  # noqa: ARG002
         for sig in WHATSAPP_SIGNATURES:
             if sig.lower() in html.lower():
                 result.has_whatsapp = True

@@ -1,19 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Zap, Globe, Search, Share2, Bot, Server, Loader2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Zap, TrendingUp, Globe, Search, Share2, Bot, Server } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { CompanyDetail, CompanyListResponse } from "@/lib/types";
 
-interface Company {
-  id: string;
-  name: string;
-  domain: string | null;
-  industry: string | null;
-  opportunity_score: number;
-  opportunity_breakdown: Record<string, number>;
-  recommended_services: string[] | null;
-  estimated_deal_value: number | null;
-}
+type CompanyWithDetail = CompanyListResponse & { items: CompanyDetail[] };
 
 function ScoreRing({ score }: { score: number }) {
   const circumference = 2 * Math.PI * 36;
@@ -47,6 +39,7 @@ function BreakdownBar({ label, value, max, icon: Icon }: { label: string; value:
 }
 
 export default function ScoringPage() {
+<<<<<<< HEAD
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,26 +56,96 @@ export default function ScoringPage() {
         if (data.items.length > 0) setSelectedCompany(data.items[0]);
       } catch (err) {
         console.error("Failed to load companies:", err);
+=======
+  const [companies, setCompanies] = useState<CompanyDetail[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const data = await api.get<CompanyWithDetail>("/api/v1/companies", {
+          sort_by: "opportunity_score",
+          limit: "20",
+        });
+        setCompanies(data.items);
+        if (data.items.length > 0) {
+          setSelectedCompany(data.items[0]);
+        }
+      } catch (err: any) {
+        setError(err.error?.message || err.message || "Failed to load scores");
+>>>>>>> 1d445a262b56d144109b26577a27dc6b5f6f10e4
       } finally {
         setLoading(false);
       }
     }
+<<<<<<< HEAD
     load();
+=======
+    fetchData();
+>>>>>>> 1d445a262b56d144109b26577a27dc6b5f6f10e4
   }, []);
 
   if (loading) {
     return (
+<<<<<<< HEAD
       <div className="flex items-center justify-center py-20">
         <Loader2 size={32} className="animate-spin text-muted-foreground" />
       </div>
     );
   }
+=======
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <span className="ml-3 text-muted-foreground">Cargando scores...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
+        Error: {error}
+      </div>
+    );
+  }
+
+  const breakdown = selectedCompany?.opportunity_breakdown || {};
+  const services = selectedCompany?.recommended_services || [];
+  const dealValue = selectedCompany?.estimated_deal_value ?? 0;
+>>>>>>> 1d445a262b56d144109b26577a27dc6b5f6f10e4
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Opportunity Scoring</h1>
+<<<<<<< HEAD
         <p className="text-muted-foreground">{companies.length} empresas analizadas</p>
+=======
+        <p className="text-muted-foreground">Analisis automatico de oportunidades de negocio</p>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-card rounded-lg border p-4">
+          <p className="text-sm text-muted-foreground">Total Analizadas</p>
+          <p className="text-2xl font-bold text-foreground">{companies.length}</p>
+        </div>
+        <div className="bg-card rounded-lg border p-4">
+          <p className="text-sm text-muted-foreground">Alta Oportunidad (80+)</p>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+            {companies.filter((c) => c.opportunity_score >= 80).length}
+          </p>
+        </div>
+        <div className="bg-card rounded-lg border p-4">
+          <p className="text-sm text-muted-foreground">Valor Potencial</p>
+          <p className="text-2xl font-bold text-foreground">
+            ${companies.reduce((a, c) => a + (c.estimated_deal_value ?? 0), 0).toLocaleString()}
+          </p>
+        </div>
+>>>>>>> 1d445a262b56d144109b26577a27dc6b5f6f10e4
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -92,6 +155,7 @@ export default function ScoringPage() {
             <h2 className="font-semibold text-foreground">Ranking por Oportunidad</h2>
           </div>
           <div className="divide-y">
+<<<<<<< HEAD
             {companies.map((company, i) => (
               <div
                 key={company.id}
@@ -116,6 +180,33 @@ export default function ScoringPage() {
             ))}
             {companies.length === 0 && (
               <div className="p-8 text-center text-muted-foreground">No hay empresas para analizar</div>
+=======
+            {companies.length === 0 ? (
+              <div className="p-4 text-sm text-muted-foreground">Sin empresas disponibles</div>
+            ) : (
+              companies.map((company, i) => (
+                <div
+                  key={company.id}
+                  onClick={() => setSelectedCompany(company)}
+                  className={`flex items-center gap-4 p-4 cursor-pointer transition-colors ${
+                    selectedCompany?.id === company.id ? "bg-primary/5" : "hover:bg-muted/30"
+                  }`}
+                >
+                  <span className="text-sm font-medium text-muted-foreground w-6">{i + 1}</span>
+                  <ScoreRing score={company.opportunity_score} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{company.name}</p>
+                    <p className="text-xs text-muted-foreground">{company.domain || "Sin sitio web"}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-foreground">
+                      ${(company.estimated_deal_value ?? 0).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-muted-foreground">valor estimado</p>
+                  </div>
+                </div>
+              ))
+>>>>>>> 1d445a262b56d144109b26577a27dc6b5f6f10e4
             )}
           </div>
         </div>
@@ -127,6 +218,7 @@ export default function ScoringPage() {
               <ScoreRing score={selectedCompany.opportunity_score} />
               <h3 className="mt-2 font-semibold text-foreground">{selectedCompany.name}</h3>
               <p className="text-xs text-muted-foreground">{selectedCompany.domain || "Sin sitio web"}</p>
+<<<<<<< HEAD
             </div>
 
             <div className="space-y-2">
@@ -148,6 +240,44 @@ export default function ScoringPage() {
                 </div>
               </div>
             )}
+=======
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Desglose</p>
+              <BreakdownBar label="Web" value={breakdown.web_presence || 0} max={25} icon={Globe} />
+              <BreakdownBar label="SEO" value={breakdown.seo || 0} max={25} icon={Search} />
+              <BreakdownBar label="Social" value={breakdown.social || 0} max={15} icon={Share2} />
+              <BreakdownBar label="Automat." value={breakdown.automation || 0} max={20} icon={Bot} />
+              <BreakdownBar label="Tecnico" value={breakdown.technical || 0} max={15} icon={Server} />
+            </div>
+
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                Servicios Recomendados
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {services.length === 0 ? (
+                  <span className="text-xs text-muted-foreground">Sin recomendaciones</span>
+                ) : (
+                  services!.map((s: string) => (
+                    <span key={s} className="px-2 py-1 rounded-full text-xs bg-primary/10 text-primary">
+                      {s}
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 border-t">
+              <p className="text-xs text-muted-foreground">
+                Valor estimado:{" "}
+                <span className="font-bold text-foreground">
+                  ${dealValue.toLocaleString()}
+                </span>
+              </p>
+            </div>
+>>>>>>> 1d445a262b56d144109b26577a27dc6b5f6f10e4
           </div>
         )}
       </div>

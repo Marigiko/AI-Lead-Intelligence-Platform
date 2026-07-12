@@ -1,11 +1,7 @@
-"""
-Discovery API routes.
-"""
-from __future__ import annotations
+from typing import Any, cast
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, DBSession
 from src.application.discovery.dto import DiscoverySearchRequest, DiscoverySearchResponse
@@ -15,7 +11,9 @@ router = APIRouter(prefix="/discovery", tags=["Discovery"])
 
 
 class SearchRequest(BaseModel):
-    location: str = Field(..., description="City, address, or region", examples=["Resistencia, Chaco"])
+    location: str = Field(
+        ..., description="City, address, or region", examples=["Resistencia, Chaco"]
+    )
     radius_km: int = Field(default=50, ge=1, le=500, description="Search radius in km")
     intent: str = Field(
         ...,
@@ -58,6 +56,8 @@ async def search_companies(
     session: DBSession,
 ):
     """Start a discovery search for companies."""
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant access required")
     use_cases = DiscoveryUseCases(session, user.tenant_id)
     request = DiscoverySearchRequest(
         location=data.location,
@@ -73,23 +73,28 @@ async def search_companies(
 async def parse_intent(
     data: IntentParseRequest,
     user: CurrentUser,
-):
+    session: DBSession,
+) -> dict[str, Any]:
     """Parse natural language intent into structured search rules (preview without executing)."""
-    use_cases = DiscoveryUseCases.__new__(DiscoveryUseCases)
-    return use_cases.parse_intent(data.intent)
+    if not user.tenant_id:
+        raise HTTPException(status_code=400, detail="User must belong to a tenant")
+    use_cases = DiscoveryUseCases(session, user.tenant_id)
+    return cast("dict[str, Any]", use_cases.parse_intent(data.intent))  # type: ignore[reportUnknownMemberType]
 
 
 @router.post("/geocode", response_model=GeocodeResponse)
 async def geocode_location(
     data: GeocodeRequest,
-    user: CurrentUser,
+    user: CurrentUser,  # noqa: ARG001
 ):
     """Convert a location string to coordinates."""
     from src.infrastructure.scraping.geocoding import get_geocoding_service
+
     geocoding = get_geocoding_service()
     result = await geocoding.geocode(data.location)
     if not result:
         from src.core.exceptions import NotFoundError
+
         raise NotFoundError("Location", data.location)
     return GeocodeResponse(
         latitude=result.latitude,
@@ -102,8 +107,9 @@ async def geocode_location(
 
 
 @router.get("/sources")
-async def list_sources(user: CurrentUser):
+async def list_sources(user: CurrentUser):  # noqa: ARG001
     """List available scraper sources."""
     from src.infrastructure.scraping.plugins.registry import get_plugin_registry
+
     registry = get_plugin_registry()
     return {"sources": registry.list_plugins()}

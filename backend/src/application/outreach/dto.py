@@ -1,12 +1,15 @@
 """
 Outreach application DTOs.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 
 @dataclass
@@ -15,7 +18,7 @@ class CreateCampaignRequest:
     type: str = "email"  # email, whatsapp, linkedin
     subject: str = ""
     ai_prompt: str = ""  # Instructions for AI message generation
-    settings: dict[str, Any] = field(default_factory=dict)
+    settings: dict[str, Any] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
 
 
 @dataclass

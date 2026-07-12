@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.company.models import Company, CompanySource
 from src.domain.company.repository import CompanyRepository, CompanySourceRepository
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class SQLAlchemyCompanyRepository(CompanyRepository):
@@ -97,9 +100,7 @@ class SQLAlchemyCompanyRepository(CompanyRepository):
 
         return companies, total
 
-    async def search(
-        self, tenant_id: UUID, query: str, *, limit: int = 20
-    ) -> list[Company]:
+    async def search(self, tenant_id: UUID, query: str, *, limit: int = 20) -> list[Company]:
         search = f"%{query}%"
         stmt = (
             select(Company)
@@ -120,13 +121,12 @@ class SQLAlchemyCompanyRepository(CompanyRepository):
     async def find_duplicates(
         self, tenant_id: UUID, name: str, domain: str | None, city: str | None
     ) -> list[Company]:
-        stmt = select(Company).where(Company.tenant_id == tenant_id)
-        conditions = [Company.name.ilike(f"%{name}%")]
+        or_expr = Company.name.ilike(f"%{name}%")
         if domain:
-            conditions.append(Company.domain == domain)
+            or_expr = or_expr | (Company.domain == domain)
         if city:
-            conditions.append(Company.city.ilike(f"%{city}%"))
-        stmt = stmt.where(or_(*conditions)).limit(10)
+            or_expr = or_expr | Company.city.ilike(f"%{city}%")
+        stmt = select(Company).where(Company.tenant_id == tenant_id).where(or_expr).limit(10)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 

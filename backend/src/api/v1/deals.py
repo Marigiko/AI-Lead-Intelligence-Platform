@@ -1,12 +1,8 @@
-"""
-Deals (CRM) API routes.
-"""
-from __future__ import annotations
-
 from datetime import date
+from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from src.api.dependencies import CurrentUser, DBSession
@@ -16,6 +12,7 @@ router = APIRouter(prefix="/deals", tags=["Deals"])
 
 
 # --- DTOs ---
+
 
 class CreateDealRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
@@ -55,13 +52,13 @@ class AddNoteRequest(BaseModel):
 class DealResponse(BaseModel):
     id: str
     title: str
-    value: float | None
-    currency: str
+    value: float | None = None
+    currency: str = "USD"
     stage: str
-    probability: int
-    company_id: str | None
-    expected_close_date: str | None
-    created_at: str
+    probability: int = 10
+    company_id: str | None = None
+    expected_close_date: str | None = None
+    created_at: str | None = None
 
 
 class PipelineStageResponse(BaseModel):
@@ -79,7 +76,7 @@ class PipelineStageResponse(BaseModel):
 
 class PipelineResponse(BaseModel):
     stages: list[PipelineStageResponse]
-    stats: dict
+    stats: dict[str, Any]
 
 
 class ActivityResponse(BaseModel):
@@ -93,22 +90,40 @@ class ActivityResponse(BaseModel):
 
 # --- Routes ---
 
+
+@router.get("", response_model=dict)
+async def list_deals(
+    user: CurrentUser,
+    session: DBSession,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+) -> dict[str, Any]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
+    use_cases = CRMUseCases(session, user.tenant_id)
+    return await use_cases.list_deals(offset=offset, limit=limit)
+
+
 @router.get("/pipeline", response_model=PipelineResponse)
 async def get_pipeline(
     user: CurrentUser,
     session: DBSession,
 ):
     """Get full pipeline view with stages and deals."""
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = CRMUseCases(session, user.tenant_id)
     return await use_cases.get_pipeline()
 
 
-@router.post("", response_model=DealResponse)
+@router.post("", response_model=DealResponse, status_code=201)
 async def create_deal(
     data: CreateDealRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> DealResponse:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = CRMUseCases(session, user.tenant_id)
     result = await use_cases.create_deal(data.model_dump())
     return DealResponse(**result)
@@ -119,17 +134,24 @@ async def get_deal(
     deal_id: UUID,
     user: CurrentUser,
     session: DBSession,
-):
-    use_cases = CRMUseCases(session, user.tenant_id)
+) -> DealResponse:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     from src.infrastructure.database.repositories.deal_repo import SQLAlchemyDealRepository
+
     repo = SQLAlchemyDealRepository(session)
     deal = await repo.get_by_id(deal_id)
     if not deal or deal.tenant_id != user.tenant_id:
         from src.core.exceptions import NotFoundError
+
         raise NotFoundError("Deal", str(deal_id))
     return DealResponse(
-        id=str(deal.id), title=deal.title, value=deal.value,
-        currency=deal.currency, stage=deal.stage, probability=deal.probability,
+        id=str(deal.id),
+        title=deal.title,
+        value=deal.value,
+        currency=deal.currency,
+        stage=deal.stage,
+        probability=deal.probability,
         company_id=str(deal.company_id) if deal.company_id else None,
         expected_close_date=str(deal.expected_close_date) if deal.expected_close_date else None,
         created_at=str(deal.created_at),
@@ -142,7 +164,9 @@ async def update_deal(
     data: UpdateDealRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, Any]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = CRMUseCases(session, user.tenant_id)
     return await use_cases.update_deal(deal_id, data.model_dump(exclude_unset=True))
 
@@ -153,8 +177,10 @@ async def move_deal(
     data: MoveDealRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, Any]:
     """Move deal to a new stage (Kanban drag & drop)."""
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = CRMUseCases(session, user.tenant_id)
     return await use_cases.move_deal(deal_id, data.stage)
 
@@ -165,7 +191,9 @@ async def add_note(
     data: AddNoteRequest,
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, Any]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = CRMUseCases(session, user.tenant_id)
     return await use_cases.add_note(deal_id, data.content)
 
@@ -176,6 +204,8 @@ async def get_timeline(
     user: CurrentUser,
     session: DBSession,
 ):
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = CRMUseCases(session, user.tenant_id)
     return await use_cases.get_activity_timeline(deal_id)
 
@@ -186,6 +216,8 @@ async def get_recent_activity(
     session: DBSession,
     limit: int = Query(20, ge=1, le=100),
 ):
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = CRMUseCases(session, user.tenant_id)
     return await use_cases.get_recent_activity(limit=limit)
 
@@ -194,6 +226,8 @@ async def get_recent_activity(
 async def get_stats(
     user: CurrentUser,
     session: DBSession,
-):
+) -> dict[str, Any]:
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
     use_cases = CRMUseCases(session, user.tenant_id)
     return await use_cases.get_stats()

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import structlog
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.application.auth.dto import (
     LoginRequest,
@@ -14,7 +14,7 @@ from src.application.auth.dto import (
     UserResponse,
 )
 from src.core.config import get_settings
-from src.core.exceptions import ConflictError, UnauthorizedError, ValidationError
+from src.core.exceptions import ConflictError, UnauthorizedError
 from src.core.security import (
     create_access_token,
     create_refresh_token,
@@ -23,9 +23,13 @@ from src.core.security import (
     verify_password,
 )
 from src.domain.tenant.models import Tenant
-from src.domain.tenant.repository import TenantRepository
 from src.domain.user.models import User
-from src.domain.user.repository import UserRepository
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from src.domain.tenant.repository import TenantRepository
+    from src.domain.user.repository import UserRepository
 
 logger = structlog.get_logger()
 
@@ -87,7 +91,7 @@ class AuthUseCases:
             raise UnauthorizedError("Account is disabled")
 
         # Update last login
-        user.last_login_at = datetime.now(timezone.utc)
+        user.last_login_at = datetime.now(UTC)
         await self._user_repo.update(user)
 
         logger.info("user_logged_in", user_id=str(user.id))

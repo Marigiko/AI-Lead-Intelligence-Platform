@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import asyncio
 from collections import defaultdict
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Coroutine
+from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 import orjson
@@ -15,9 +15,9 @@ class DomainEvent:
     """Base class for all domain events."""
 
     event_id: UUID = field(default_factory=uuid4)
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     tenant_id: UUID | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict[str, Any])
 
     @property
     def event_type(self) -> str:

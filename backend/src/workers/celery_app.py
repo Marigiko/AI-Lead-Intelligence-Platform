@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from celery import Celery
 from celery.schedules import crontab
 
@@ -20,23 +22,23 @@ celery_app = Celery(
     ],
 )
 
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    task_track_started=True,
-    task_acks_late=True,
-    worker_prefetch_multiplier=1,
-    task_routes={
+config_updates: dict[str, Any] = {
+    "task_serializer": "json",
+    "accept_content": ["json"],
+    "result_serializer": "json",
+    "timezone": "UTC",
+    "enable_utc": True,
+    "task_track_started": True,
+    "task_acks_late": True,
+    "worker_prefetch_multiplier": 1,
+    "task_routes": {
         "src.workers.discovery_tasks.*": {"queue": "scraping"},
         "src.workers.enrichment_tasks.*": {"queue": "enrichment"},
         "src.workers.scoring_tasks.*": {"queue": "ai"},
         "src.workers.outreach_tasks.*": {"queue": "outreach"},
         "src.workers.sdr_tasks.*": {"queue": "ai"},
     },
-    beat_schedule={
+    "beat_schedule": {
         "check-pending-conversations": {
             "task": "src.workers.sdr_tasks.check_pending_conversations",
             "schedule": crontab(minute="*/5"),
@@ -46,4 +48,5 @@ celery_app.conf.update(
             "schedule": crontab(hour="*/6"),
         },
     },
-)
+}
+celery_app.conf.update(config_updates)  # type: ignore[reportUnknownMemberType]

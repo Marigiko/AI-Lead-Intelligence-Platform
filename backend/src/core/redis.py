@@ -11,7 +11,7 @@ async def get_redis() -> redis.Redis:
     global _pool
     if _pool is None:
         settings = get_settings()
-        _pool = redis.from_url(
+        _pool = redis.from_url(  # type: ignore[no-untyped-call]
             str(settings.redis_url),
             decode_responses=True,
             max_connections=20,

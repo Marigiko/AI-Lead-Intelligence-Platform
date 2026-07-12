@@ -1,9 +1,10 @@
 """
 Monitoring and metrics — Prometheus-compatible metrics.
 """
+
 from __future__ import annotations
 
-from prometheus_client import Counter, Histogram, Gauge, Info
+from prometheus_client import Counter, Gauge, Histogram, Info
 
 # App info
 app_info = Info("lead_platform", "AI Lead Intelligence Platform")

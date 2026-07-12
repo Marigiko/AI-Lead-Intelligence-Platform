@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import MetaData, event
+from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -13,6 +12,9 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from src.core.config import get_settings
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 # Naming convention for constraints — ensures consistent migration names
 convention = {
@@ -99,3 +101,10 @@ async def close_db() -> None:
         await _engine.dispose()
         _engine = None
         _session_factory = None
+
+
+def reset_db_cache() -> None:
+    """Reset cached engine and session factory (for testing only)."""
+    global _engine, _session_factory
+    _engine = None
+    _session_factory = None

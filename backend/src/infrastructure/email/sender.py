@@ -1,18 +1,19 @@
 """
 Email sender — handles SMTP and SendGrid email delivery.
 """
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import aiosmtplib
 import structlog
 
-from src.core.config import get_settings
+from src.core.config import Settings, get_settings
 
 logger = structlog.get_logger()
 
@@ -42,7 +43,7 @@ class EmailSender:
     """Sends emails via SMTP or SendGrid."""
 
     async def send(self, message: EmailMessage) -> SendResult:
-        settings = get_settings()
+        settings: Settings = get_settings()
 
         # Use SendGrid if configured
         if settings.sendgrid_api_key:
@@ -55,10 +56,13 @@ class EmailSender:
         logger.warning("no_email_provider_configured")
         return SendResult(success=False, error="No email provider configured")
 
-    async def _send_smtp(self, message: EmailMessage, settings: any) -> SendResult:
+    async def _send_smtp(self, message: EmailMessage, settings: Settings) -> SendResult:
         try:
             msg = MIMEMultipart("alternative")
-            msg["From"] = f"{message.from_name or settings.app_name} <{message.from_email or settings.smtp_user}>"
+            msg["From"] = (
+                f"{message.from_name or settings.app_name} "
+                f"<{message.from_email or settings.smtp_user}>"
+            )
             msg["To"] = message.to
             msg["Subject"] = message.subject
             if message.reply_to:
@@ -66,13 +70,20 @@ class EmailSender:
 
             # Add tracking pixel
             if message.tracking_id:
-                tracking_url = f"{settings.api_url}/api/v1/campaigns/track/open/{message.tracking_id}"
-                message.html_body += f'<img src="{tracking_url}" width="1" height="1" style="display:none" />'
+                tracking_url = (
+                    f"{settings.api_url}/api/v1/campaigns/track/open/{message.tracking_id}"
+                )
+                message.html_body += (
+                    f'<img src="{tracking_url}" width="1" height="1" style="display:none" />'
+                )
 
             # Add unsubscribe link
             if message.campaign_lead_id:
                 unsub_url = f"{settings.app_url}/unsubscribe/{message.campaign_lead_id}"
-                message.html_body += f'<br><br><p style="font-size:11px;color:#999"><a href="{unsub_url}">Cancelar suscripcion</a></p>'
+                message.html_body += (
+                    f'<br><br><p style="font-size:11px;color:#999">'
+                    f'<a href="{unsub_url}">Cancelar suscripcion</a></p>'
+                )
 
             if message.text_body:
                 msg.attach(MIMEText(message.text_body, "plain"))
@@ -90,7 +101,7 @@ class EmailSender:
             return SendResult(
                 success=True,
                 message_id=str(uuid.uuid4()),
-                sent_at=datetime.now(timezone.utc),
+                sent_at=datetime.now(UTC),
             )
         except Exception as e:
             logger.error("smtp_send_failed", to=message.to, error=str(e))
@@ -98,9 +109,11 @@ class EmailSender:
 
     async def _send_sendgrid(self, message: EmailMessage, api_key: str) -> SendResult:
         try:
+            from typing import Any
+
             import httpx
 
-            payload = {
+            payload: dict[str, Any] = {
                 "personalizations": [{"to": [{"email": message.to}]}],
                 "from": {
                     "email": message.from_email or "noreply@example.com",
@@ -112,8 +125,6 @@ class EmailSender:
 
             # Add tracking
             if message.tracking_id:
-                settings = get_settings()
-                tracking_url = f"{settings.api_url}/api/v1/campaigns/track/open/{message.tracking_id}"
                 payload["custom_args"] = {"tracking_id": message.tracking_id}
                 payload["tracking_settings"] = {
                     "open_tracking": {"enable": True},
@@ -134,10 +145,11 @@ class EmailSender:
                 return SendResult(
                     success=True,
                     message_id=resp.headers.get("x-message-id", ""),
-                    sent_at=datetime.now(timezone.utc),
+                    sent_at=datetime.now(UTC),
                 )
-            else:
-                return SendResult(success=False, error=f"SendGrid {resp.status_code}: {resp.text[:200]}")
+            return SendResult(
+                success=False, error=f"SendGrid {resp.status_code}: {resp.text[:200]}"
+            )
 
         except Exception as e:
             logger.error("sendgrid_send_failed", to=message.to, error=str(e))

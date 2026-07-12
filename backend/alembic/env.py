@@ -9,8 +9,12 @@ from src.core.config import get_settings
 from src.core.database import Base
 
 # Import all models so Alembic can detect them
+from src.domain.audit.models import AuditLog  # noqa: F401
+from src.domain.campaign.models import Campaign, CampaignLead, MessageTemplate  # noqa: F401
 from src.domain.company.models import Company, CompanySource  # noqa: F401
 from src.domain.contact.models import Contact  # noqa: F401
+from src.domain.conversation.models import Conversation, ConversationMessage  # noqa: F401
+from src.domain.deal.models import Activity, Deal, PipelineStage  # noqa: F401
 from src.domain.tenant.models import Tenant  # noqa: F401
 from src.domain.user.models import User  # noqa: F401
 

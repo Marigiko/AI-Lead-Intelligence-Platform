@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, Search, Loader2 } from "lucide-react";
+import { Building2, Search, Filter, ExternalLink, Phone, Mail } from "lucide-react";
 import { api } from "@/lib/api-client";
-import type { Company, CompanyListResponse } from "@/lib/types";
+import { Company, CompanyListResponse } from "@/lib/types";
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -30,37 +30,67 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [industryFilter, setIndustryFilter] = useState("");
 
   useEffect(() => {
-    loadCompanies();
-  }, []);
-
-  async function loadCompanies() {
-    try {
-      setLoading(true);
-      const params: Record<string, string> = { limit: "100" };
-      if (search) params.search = search;
-      if (industryFilter) params.industry = industryFilter;
-      const data = await api.get<CompanyListResponse>("/api/v1/companies", params);
-      setCompanies(data.items);
-      setTotal(data.total);
-    } catch (err) {
-      console.error("Failed to load companies:", err);
-    } finally {
-      setLoading(false);
+    async function fetchCompanies() {
+      try {
+        setLoading(true);
+        setError(null);
+        const params: Record<string, string> = { limit: "50" };
+        if (search) params.search = search;
+        if (industryFilter) params.industry = industryFilter;
+        const data = await api.get<CompanyListResponse>("/api/v1/companies", params);
+        setCompanies(data.items);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Error al cargar empresas");
+      } finally {
+        setLoading(false);
+      }
     }
-  }
-
-  const industries = [...new Set(companies.map((c) => c.industry).filter(Boolean))] as string[];
+    fetchCompanies();
+  }, [search, industryFilter]);
 
   const filtered = companies.filter((c) => {
     if (industryFilter && c.industry !== industryFilter) return false;
     return true;
   });
+
+  const industries = [...new Set(companies.map((c) => c.industry).filter(Boolean))] as string[];
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Empresas</h1>
+          <p className="text-muted-foreground">Todas las empresas descubiertas y enriquecidas</p>
+        </div>
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-16 bg-card rounded-lg border animate-pulse" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Empresas</h1>
+          <p className="text-muted-foreground">Todas las empresas descubiertas y enriquecidas</p>
+        </div>
+        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
+          <p className="font-medium">Error al cargar empresas</p>
+          <p className="text-sm mt-1">{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -93,20 +123,49 @@ export default function CompaniesPage() {
         </select>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 size={24} className="animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <div className="bg-card rounded-lg border overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Empresa</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden md:table-cell">Industria</th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden lg:table-cell">Ubicacion</th>
-                <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground">Score</th>
-                <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground hidden sm:table-cell">Estado</th>
+      {/* Companies Table */}
+      <div className="bg-card rounded-lg border overflow-hidden">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b bg-muted/50">
+              <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Empresa</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden md:table-cell">Industria</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden lg:table-cell">Ubicacion</th>
+              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground">Score</th>
+              <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground hidden sm:table-cell">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((company) => (
+              <tr
+                key={company.id}
+                className="border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer"
+              >
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
+                      <Building2 size={14} className="text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{company.name}</p>
+                      {company.domain && (
+                        <p className="text-xs text-muted-foreground">{company.domain}</p>
+                      )}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
+                  {company.industry}
+                </td>
+                <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
+                  {company.city}
+                </td>
+                <td className="px-4 py-3 text-center">
+                  <ScoreBadge score={company.opportunity_score} />
+                </td>
+                <td className="px-4 py-3 text-center hidden sm:table-cell">
+                  <StatusBadge status={company.status} />
+                </td>
               </tr>
             </thead>
             <tbody>

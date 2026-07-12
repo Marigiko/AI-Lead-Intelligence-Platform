@@ -1,36 +1,107 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { GripVertical, Plus, DollarSign, Calendar, Building2, MoreHorizontal } from "lucide-react";
+import { api } from "@/lib/api-client";
+import { Deal } from "@/lib/types";
 
-const stages = [
-  { name: "Prospeccion", color: "#94a3b8", deals: [
-    { id: "d1", title: "Constructora Chaco — Web nueva", value: 5000, company: "Constructora Chaco SRL", date: "2026-07-15" },
-    { id: "d2", title: "Distribuidora El Norte — SEO", value: 3000, company: "Distribuidora El Norte", date: "2026-07-20" },
-  ]},
-  { name: "Contacto", color: "#60a5fa", deals: [
-    { id: "d3", title: "Clinica Dental — Chatbot + CRM", value: 4500, company: "Clinica Dental Sonrisa", date: "2026-07-10" },
-  ]},
-  { name: "Calificado", color: "#a78bfa", deals: [
-    { id: "d4", title: "Hotel Cacique — Booking online", value: 6000, company: "Hotel Cacique Calchaqui", date: "2026-07-08" },
-  ]},
-  { name: "Propuesta", color: "#fbbf24", deals: [
-    { id: "d5", title: "La Parrilla — Rediseño web +Delivery", value: 3500, company: "Restaurante La Parrilla", date: "2026-07-05" },
-  ]},
-  { name: "Negociacion", color: "#f97316", deals: [
-    { id: "d6", title: "Estudio Moreno — Automatización", value: 3200, company: "Estudio Juridico Moreno", date: "2026-07-01" },
-  ]},
-  { name: "Ganado", color: "#22c55e", deals: [
-    { id: "d7", title: "Frigorifico Chaco — Website", value: 4800, company: "Frigorifico Chaco S.A.", date: "2026-06-28" },
-  ]},
-  { name: "Perdido", color: "#ef4444", deals: [] },
-];
+interface Stage {
+  name: string;
+  color: string;
+  deals: Deal[];
+}
 
-const totalValue = stages.reduce((acc, s) => acc + s.deals.reduce((a, d) => a + d.value, 0), 0);
-const wonValue = stages.find(s => s.name === "Ganado")?.deals.reduce((a, d) => a + d.value, 0) || 0;
+interface CRMStage {
+  id: string;
+  name: string;
+  color: string | null;
+  position: number;
+}
+
+const DEFAULT_STAGES = ["prospeccion", "Contacto", "Calificado", "propuesta", "Negociacion", "Ganado", "Perdido"];
+const STAGE_COLORS: Record<string, string> = {
+  prospeccion: "#94a3b8",
+  Contacto: "#60a5fa",
+  Calificado: "#a78bfa",
+  propuesta: "#fbbf24",
+  Negociacion: "#f97316",
+  Ganado: "#22c55e",
+  Perdido: "#ef4444",
+};
 
 export default function DealsPage() {
+  const [stages, setStages] = useState<Stage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedDeal, setSelectedDeal] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        const [deals, crmStages] = await Promise.all([
+          api.get<Deal[]>("/api/v1/deals"),
+          api.get<CRMStage[]>("/api/v1/crm/stages").catch(() => null),
+        ]);
+
+        // Build stage list from API or fall back to defaults
+        const stageDefinitions: { name: string; color: string }[] = crmStages
+          ? crmStages
+              .sort((a, b) => a.position - b.position)
+              .map((s) => ({ name: s.name, color: s.color || STAGE_COLORS[s.name] || "#94a3b8" }))
+          : DEFAULT_STAGES.map((name) => ({ name, color: STAGE_COLORS[name] || "#94a3b8" }));
+
+        // Group deals by stage
+        const stageMap: Record<string, Deal[]> = {};
+        for (const def of stageDefinitions) {
+          stageMap[def.name] = [];
+        }
+        for (const deal of deals) {
+          if (!stageMap[deal.stage]) {
+            stageMap[deal.stage] = [];
+          }
+          stageMap[deal.stage].push(deal);
+        }
+
+        setStages(
+          stageDefinitions.map((def) => ({
+            name: def.name,
+            color: def.color,
+            deals: stageMap[def.name] || [],
+          }))
+        );
+      } catch (err: any) {
+        setError(err.error?.message || err.message || "Failed to load deals");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <span className="ml-3 text-muted-foreground">Cargando pipeline...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 text-destructive">
+        Error: {error}
+      </div>
+    );
+  }
+
+  const totalValue = stages.reduce((acc, s) => acc + s.deals.reduce((a, d) => a + (d.value ?? 0), 0), 0);
+  const wonStage = stages.find((s) => s.name === "Ganado");
+  const wonValue = wonStage?.deals.reduce((a, d) => a + (d.value ?? 0), 0) ?? 0;
+  const activeDeals = stages
+    .filter((s) => s.name !== "Perdido" && s.name !== "Ganado")
+    .reduce((a, s) => a + s.deals.length, 0);
 
   return (
     <div className="space-y-6">
@@ -57,14 +128,12 @@ export default function DealsPage() {
         </div>
         <div className="bg-card rounded-lg border p-3">
           <p className="text-xs text-muted-foreground">Negocios Activos</p>
-          <p className="text-xl font-bold text-foreground">
-            {stages.filter(s => !s.deals.length || s.name === "Perdido" ? 0 : s.deals.length).reduce((a, s) => a + s.deals.length, 0)}
-          </p>
+          <p className="text-xl font-bold text-foreground">{activeDeals}</p>
         </div>
         <div className="bg-card rounded-lg border p-3">
           <p className="text-xs text-muted-foreground">Tasa de Cierre</p>
           <p className="text-xl font-bold text-foreground">
-            {stages.find(s => s.name === "Ganado")?.deals.length || 0} / {stages.reduce((a, s) => a + s.deals.length, 0)}
+            {wonStage?.deals.length ?? 0} / {stages.reduce((a, s) => a + s.deals.length, 0)}
           </p>
         </div>
       </div>
@@ -102,16 +171,16 @@ export default function DealsPage() {
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <DollarSign size={12} />
-                      ${deal.value.toLocaleString()}
+                      ${(deal.value ?? 0).toLocaleString()}
                     </span>
                     <span className="flex items-center gap-1">
                       <Building2 size={12} />
-                      {deal.company.split(" ").slice(0, 2).join(" ")}
+                      {deal.company_id.slice(0, 8)}
                     </span>
                   </div>
                   <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
                     <Calendar size={12} />
-                    {deal.date}
+                    {deal.created_at ? new Date(deal.created_at).toLocaleDateString() : "—"}
                   </div>
                 </div>
               ))}
@@ -125,7 +194,7 @@ export default function DealsPage() {
             {/* Stage Total */}
             {stage.deals.length > 0 && (
               <div className="mt-2 px-1 text-xs font-medium text-muted-foreground">
-                Total: ${stage.deals.reduce((a, d) => a + d.value, 0).toLocaleString()}
+                Total: ${stage.deals.reduce((a, d) => a + (d.value ?? 0), 0).toLocaleString()}
               </div>
             )}
           </div>

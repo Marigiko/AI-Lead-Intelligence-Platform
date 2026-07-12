@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.domain.deal.models import Activity, Deal, PipelineStage
 from src.domain.deal.repository import (
@@ -12,6 +10,11 @@ from src.domain.deal.repository import (
     DealRepository,
     PipelineStageRepository,
 )
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class SQLAlchemyDealRepository(DealRepository):
@@ -44,7 +47,9 @@ class SQLAlchemyDealRepository(DealRepository):
         base = select(Deal).where(Deal.tenant_id == tenant_id)
         if stage:
             base = base.where(Deal.stage == stage)
-        count = (await self._session.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
+        count = (
+            await self._session.execute(select(func.count()).select_from(base.subquery()))
+        ).scalar() or 0
         stmt = base.order_by(Deal.updated_at.desc()).offset(offset).limit(limit)
         result = await self._session.execute(stmt)
         return list(result.scalars().all()), count
@@ -68,21 +73,31 @@ class SQLAlchemyDealRepository(DealRepository):
     async def get_pipeline_stats(self, tenant_id: UUID) -> dict[str, Any]:
         base = select(Deal).where(Deal.tenant_id == tenant_id)
 
-        total = (await self._session.execute(select(func.count()).select_from(base.subquery()))).scalar() or 0
-        total_value = (await self._session.execute(
-            select(func.coalesce(func.sum(Deal.value), 0)).select_from(base.subquery())
-        )).scalar() or 0
-        won_count = (await self._session.execute(
-            select(func.count()).select_from(base.where(Deal.stage == "won").subquery())
-        )).scalar() or 0
-        won_value = (await self._session.execute(
-            select(func.coalesce(func.sum(Deal.value), 0)).select_from(
-                base.where(Deal.stage == "won").subquery()
+        total = (
+            await self._session.execute(select(func.count()).select_from(base.subquery()))
+        ).scalar() or 0
+        total_value = (
+            await self._session.execute(
+                select(func.coalesce(func.sum(Deal.value), 0)).select_from(base.subquery())
             )
-        )).scalar() or 0
-        lost_count = (await self._session.execute(
-            select(func.count()).select_from(base.where(Deal.stage == "lost").subquery())
-        )).scalar() or 0
+        ).scalar() or 0
+        won_count = (
+            await self._session.execute(
+                select(func.count()).select_from(base.where(Deal.stage == "won").subquery())
+            )
+        ).scalar() or 0
+        won_value = (
+            await self._session.execute(
+                select(func.coalesce(func.sum(Deal.value), 0)).select_from(
+                    base.where(Deal.stage == "won").subquery()
+                )
+            )
+        ).scalar() or 0
+        lost_count = (
+            await self._session.execute(
+                select(func.count()).select_from(base.where(Deal.stage == "lost").subquery())
+            )
+        ).scalar() or 0
 
         return {
             "total_deals": total,

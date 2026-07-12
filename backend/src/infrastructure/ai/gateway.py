@@ -2,6 +2,7 @@
 AI Gateway — unified interface for LLM providers.
 Supports OpenAI-compatible APIs (LongCat, OpenAI, etc.) and LiteLLM.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -17,13 +18,14 @@ logger = structlog.get_logger()
 @dataclass
 class AIResponse:
     """Response from the AI gateway."""
+
     content: str
     model: str
     provider: str
     tokens_used: int = 0
     cost_usd: float = 0.0
     finish_reason: str = ""
-    raw: dict[str, Any] = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict)  # pyright: ignore[reportUnknownVariableType]
 
 
 class AIGateway:
@@ -36,11 +38,11 @@ class AIGateway:
         if self._client is None:
             settings = get_settings()
             try:
-                from openai import AsyncOpenAI
-                self._client = AsyncOpenAI(
-                    api_key=settings.openai_api_key,
-                    base_url=getattr(settings, 'openai_api_base', None) or "https://api.openai.com/v1",
-                )
+                import litellm
+
+                litellm.success_callback = []
+                litellm.failure_callback = []
+                self._client = litellm
             except ImportError:
                 logger.error("openai_not_installed")
                 raise
@@ -79,29 +81,46 @@ class AIGateway:
                 "max_tokens": max_tokens,
             }
 
-            response = await client.chat.completions.create(**kwargs)
+            litellm_client: Any = client
+            response: Any = litellm_client.completion(**kwargs)
 
-            content = response.choices[0].message.content or ""
-            # Strip markdown code fences if present
-            if content.startswith("```"):
-                content = content.split("\n", 1)[1] if "\n" in content else content[3:]
-                if content.endswith("```"):
-                    content = content[:-3]
-                content = content.strip()
+            if not hasattr(response, "choices") or not response.choices:
+                content_str = str(getattr(response, "content", ""))
+                return AIResponse(
+                    content=content_str,
+                    model=model,
+                    provider=model.split("/")[0] if "/" in model else "unknown",
+                    tokens_used=0,
+                    finish_reason="",
+                    raw={"id": str(getattr(response, "id", ""))},
+                )
 
-            usage = response.usage
+            choices = response.choices
+            message = choices[0].message
+            content = message.content or ""
+            usage = getattr(response, "usage", None)
+            resp_model = response.model or model
 
             return AIResponse(
                 content=content,
-                model=response.model,
-                provider="longcat" if "longcat" in (settings.openai_api_base or "") else "openai",
+                model=resp_model,
+                provider=str(resp_model).split("/")[0] if "/" in str(resp_model) else "unknown",
                 tokens_used=usage.total_tokens if usage else 0,
-                finish_reason=response.choices[0].finish_reason or "",
-                raw={"id": response.id},
+                finish_reason=choices[0].finish_reason or "",
+                raw={"id": str(getattr(response, "id", ""))},
             )
 
         except Exception as e:
             logger.error("ai_gateway_error", model=model, error=str(e))
+            # Fallback to default model
+            if model != settings.ai_default_model:
+                logger.info("ai_fallback", from_model=model, to_model=settings.ai_default_model)
+                return await self.complete(
+                    messages,
+                    model=settings.ai_default_model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
             raise
 
     async def analyze_company(
@@ -118,7 +137,9 @@ class AIGateway:
         if company_data.get("industry"):
             context_parts.append(f"Industry: {company_data['industry']}")
         if company_data.get("city"):
-            context_parts.append(f"Location: {company_data['city']}, {company_data.get('province', '')}")
+            context_parts.append(
+                f"Location: {company_data['city']}, {company_data.get('province', '')}"
+            )
         if company_data.get("domain"):
             context_parts.append(f"Website: {company_data['domain']}")
         if seo_data:
@@ -146,7 +167,8 @@ class AIGateway:
                     "You are a B2B sales analyst for a digital services agency. "
                     "Analyze the company and provide a JSON response with: "
                     "opportunity_score (0-100), "
-                    "opportunity_breakdown (object with scores for web_presence, seo, social, automation, technical), "
+                    "opportunity_breakdown (object with scores for "
+                    "web_presence, seo, social, automation, technical), "
                     "analysis (2-3 paragraph text analysis in Spanish), "
                     "recommended_services (array of service names), "
                     "estimated_deal_value (number in USD), "
@@ -171,11 +193,7 @@ class AIGateway:
         )
 
         import json
-        import re
 
-        content = response.content.strip()
-
-        # Try parsing directly
         try:
             return json.loads(content)
         except json.JSONDecodeError:

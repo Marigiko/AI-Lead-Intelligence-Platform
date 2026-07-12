@@ -1,6 +1,7 @@
 """
 AI Message Generator — generates personalized outreach messages using AI.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -83,6 +84,7 @@ class MessageGenerator:
         )
 
         import json
+
         try:
             data = json.loads(response.content)
             return GeneratedMessage(
@@ -134,6 +136,7 @@ class MessageGenerator:
         response = await self._ai.complete(messages, temperature=0.7, response_format="json")
 
         import json
+
         try:
             data = json.loads(response.content)
             return GeneratedMessage(
@@ -158,17 +161,16 @@ class MessageGenerator:
                 "role": "system",
                 "content": (
                     "Write a short follow-up email in Spanish. "
-                    "It has been {days} days since the first contact. "
+                    f"It has been {days_since} days since the first contact. "
                     "Be polite, reference the previous message briefly, "
                     "and offer value. Under 100 words. "
                     "Return JSON with: subject, body"
-                ).format(days=days_since),
+                ),
             },
             {
                 "role": "user",
                 "content": (
-                    f"Follow up with {company_name}.\n"
-                    f"Original message: {original_message[:300]}"
+                    f"Follow up with {company_name}.\nOriginal message: {original_message[:300]}"
                 ),
             },
         ]
@@ -176,6 +178,7 @@ class MessageGenerator:
         response = await self._ai.complete(messages, temperature=0.7, response_format="json")
 
         import json
+
         try:
             data = json.loads(response.content)
             return GeneratedMessage(

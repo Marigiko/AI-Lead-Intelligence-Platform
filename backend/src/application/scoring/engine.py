@@ -1,9 +1,10 @@
 """
 Opportunity scoring engine — calculates a score based on multiple signals.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import structlog
@@ -14,6 +15,7 @@ logger = structlog.get_logger()
 @dataclass
 class ScoreBreakdown:
     """Breakdown of the opportunity score."""
+
     web_presence: int = 0  # 0-25
     seo: int = 0  # 0-25
     social: int = 0  # 0-15
@@ -64,7 +66,7 @@ class ScoringEngine:
 
         return breakdown
 
-    def _score_web_presence(self, data: dict) -> int:
+    def _score_web_presence(self, data: dict[str, Any]) -> int:
         score = 0
 
         # No website = highest opportunity
@@ -72,9 +74,10 @@ class ScoringEngine:
             return 25
 
         # Has website but issues
-        if data.get("page_speed_mobile") and data["page_speed_mobile"] < 50:
+        page_speed_mobile = data.get("page_speed_mobile")
+        if page_speed_mobile is not None and page_speed_mobile < 50:
             score += 8
-        elif data.get("page_speed_mobile") and data["page_speed_mobile"] < 70:
+        elif page_speed_mobile is not None and page_speed_mobile < 70:
             score += 4
 
         # No Google Business
@@ -101,7 +104,7 @@ class ScoringEngine:
 
         return min(25, score)
 
-    def _score_seo(self, data: dict) -> int:
+    def _score_seo(self, data: dict[str, Any]) -> int:
         score = 0
         seo = data.get("seo_score", 50) or 50
 
@@ -116,12 +119,14 @@ class ScoringEngine:
 
         return score
 
-    def _score_social(self, data: dict) -> int:
+    def _score_social(self, data: dict[str, Any]) -> int:
         score = 0
 
-        social_profiles = sum(1 for key in [
-            "facebook_url", "instagram_url", "linkedin_url", "tiktok_url"
-        ] if data.get(key))
+        social_profiles = sum(
+            1
+            for key in ["facebook_url", "instagram_url", "linkedin_url", "tiktok_url"]
+            if data.get(key)
+        )
 
         if social_profiles == 0:
             score = 15
@@ -132,7 +137,7 @@ class ScoringEngine:
 
         return score
 
-    def _score_automation(self, data: dict) -> int:
+    def _score_automation(self, data: dict[str, Any]) -> int:
         score = 0
 
         # No chatbot
@@ -153,7 +158,7 @@ class ScoringEngine:
 
         return min(20, score)
 
-    def _score_technical(self, data: dict) -> int:
+    def _score_technical(self, data: dict[str, Any]) -> int:
         score = 0
 
         # No SSL
@@ -161,8 +166,13 @@ class ScoringEngine:
             score += 8
 
         # Old/outdated technologies
-        tech_stack = data.get("tech_stack", [])
-        outdated = ["PHP 7", "PHP 5", "WordPress" if data.get("seo_score", 100) < 40 else ""]
+        tech_stack: list[Any] = data.get("tech_stack", [])
+        seo_score_val = data.get("seo_score", 100)
+        outdated = [
+            "PHP 7",
+            "PHP 5",
+            "WordPress" if seo_score_val is not None and seo_score_val < 40 else "",
+        ]
         for tech in tech_stack:
             for old in outdated:
                 if old and old in str(tech):
@@ -171,9 +181,9 @@ class ScoringEngine:
 
         return min(15, score)
 
-    def get_recommendations(self, data: dict, breakdown: ScoreBreakdown) -> list[str]:
+    def get_recommendations(self, data: dict[str, Any], breakdown: ScoreBreakdown) -> list[str]:
         """Generate service recommendations based on score breakdown."""
-        recommendations = []
+        recommendations: list[str] = []
 
         if breakdown.web_presence >= 15:
             if not data.get("domain"):

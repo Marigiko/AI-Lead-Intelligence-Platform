@@ -17,7 +17,7 @@ jobs:
           version: "latest"
       - name: Install dependencies
         working-directory: backend
-        run: uv sync
+        run: uv sync --extra dev
       - name: Ruff lint
         working-directory: backend
         run: uv run ruff check src tests
@@ -56,6 +56,7 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql+asyncpg://leadplatform:leadplatform@localhost:5432/leadplatform_test
+      TEST_DATABASE_URL: postgresql+asyncpg://leadplatform:leadplatform@localhost:5432/leadplatform_test
       REDIS_URL: redis://localhost:6379/0
       JWT_SECRET_KEY: test-secret
       ENVIRONMENT: testing
@@ -66,19 +67,10 @@ jobs:
           version: "latest"
       - name: Install dependencies
         working-directory: backend
-        run: uv sync
+        run: uv sync --extra dev
+      - name: Run migrations
+        working-directory: backend
+        run: uv run alembic upgrade head
       - name: Run tests
         working-directory: backend
         run: uv run pytest -v --tb=short
-
-  build:
-    name: Build Docker Images
-    runs-on: ubuntu-latest
-    needs: [lint, test]
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build backend
-        run: docker build -f infra/docker/Dockerfile.backend -t lead-platform-backend:latest .
-      - name: Build frontend
-        run: docker build -f infra/docker/Dockerfile.frontend -t lead-platform-frontend:latest .

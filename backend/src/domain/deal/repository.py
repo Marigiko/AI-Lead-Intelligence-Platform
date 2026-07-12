@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
-from src.domain.deal.models import Activity, Deal, PipelineStage
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from src.domain.deal.models import Activity, Deal, PipelineStage
 
 
 class DealRepository(ABC):
@@ -40,9 +42,7 @@ class ActivityRepository(ABC):
     async def list_by_deal(self, deal_id: UUID, *, limit: int = 50) -> list[Activity]: ...
 
     @abstractmethod
-    async def list_by_tenant(
-        self, tenant_id: UUID, *, limit: int = 50
-    ) -> list[Activity]: ...
+    async def list_by_tenant(self, tenant_id: UUID, *, limit: int = 50) -> list[Activity]: ...
 
 
 class PipelineStageRepository(ABC):
