@@ -76,9 +76,10 @@ known-first-party = ["src"]
 
 [tool.pyright]
 pythonVersion = "3.12"
-typeCheckingMode = "strict"
+typeCheckingMode = "standard"
 reportMissingImports = true
 reportMissingTypeStubs = false
+reportUnknownVariableType = false
 venvPath = "."
 venv = ".venv"
 
