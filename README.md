@@ -1,18 +1,25 @@
-# AI Lead Intelligence Platform
+# Nexus — Autonomous Revenue Intelligence Platform
 
-Automated B2B sales pipeline powered by AI. Discovers companies, enriches data, scores opportunities, generates personalized outreach, and acts as an autonomous SDR.
+> AI-powered B2B sales pipeline that discovers companies, enriches data, scores opportunities, and acts as an autonomous revenue agent — wrapped in a premium, dark-mode SaaS experience.
+
+Nexus combines an AI Revenue Agent (natural language conversational interface), real-time WebSocket chat, drag-and-drop Kanban pipeline, and an interactive lead map into a unified platform with a glassmorphism-first design system.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Python 3.12, FastAPI, SQLAlchemy 2.0, Pydantic v2 |
-| Frontend | Next.js 14, React, TypeScript, Tailwind CSS, shadcn/ui |
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2.0 (async), Pydantic v2 |
+| Frontend | Next.js 14 (App Router), React, TypeScript (strict), Tailwind CSS, Radix UI |
+| Design System | Custom glassmorphism system — electric purple + cyan, glow effects, mesh gradients |
 | Database | PostgreSQL 16 + pgvector, Redis 7, Elasticsearch 8 |
-| Task Queue | Celery + Redis |
-| AI | LiteLLM (OpenAI, Anthropic, Gemini), RAG |
-| Scraping | Playwright, BeautifulSoup |
-| Container | Docker, Docker Compose |
+| Task Queue | Celery + Redis (multi-queue: default, scraping, enrichment, ai, outreach) |
+| AI | LiteLLM (OpenAI, Anthropic, Gemini), RAG, MCP Server |
+| Real-time | WebSocket (conversation chat, live agent responses) |
+| Charts | Recharts (area, bar, pie) |
+| Maps | Leaflet + react-leaflet |
+| Scraping | Playwright, BeautifulSoup, plugin architecture |
+| Monitoring | Prometheus metrics, structured logging (structlog) |
+| Container | Docker, Docker Compose (dev + prod) |
 
 ---
 
@@ -350,65 +357,49 @@ make db-downgrade
 ## Project Structure
 
 ```
-AI-Lead-Intelligence-Platform/
+AI-Lead-Intelligence-Platform/ (Nexus)
 ├── backend/
 │   ├── alembic/              # Database migrations
-│   │   ├── env.py             # Alembic environment
-│   │   └── versions/          # Migration scripts (generated)
-│   ├── alembic.ini            # Alembic configuration
-│   ├── pyproject.toml         # Python dependencies & tool config
 │   ├── src/
 │   │   ├── core/              # Config, DB, Redis, Security, Events, Middleware
 │   │   ├── domain/            # Domain models & repository interfaces
-│   │   │   ├── campaign/      # Campaign, CampaignLead, MessageTemplate
-│   │   │   ├── company/       # Company, CompanySource
-│   │   │   ├── contact/       # Contact
-│   │   │   ├── conversation/  # Conversation, ConversationMessage
-│   │   │   ├── deal/          # Deal, Activity, PipelineStage
-│   │   │   ├── tenant/        # Tenant
-│   │   │   └── user/          # User
+│   │   │   ├── campaign/, company/, contact/, conversation/, deal/, tenant/, user/
 │   │   ├── application/       # Use cases & DTOs
-│   │   │   ├── analytics/     # Dashboard & ROI analytics
-│   │   │   ├── auth/          # Authentication use cases
-│   │   │   ├── crm/           # Deal pipeline management
-│   │   │   ├── discovery/     # Company discovery orchestrator
-│   │   │   ├── enrichment/    # Data enrichment orchestrator
-│   │   │   ├── outreach/      # Campaign & email orchestration
-│   │   │   ├── scoring/       # Opportunity scoring engine
-│   │   │   └── sdr/           # AI SDR use cases
+│   │   │   ├── analytics/, auth/, crm/, discovery/, enrichment/, outreach/, scoring/, sdr/
 │   │   ├── infrastructure/    # External service implementations
-│   │   │   ├── ai/            # AI gateway, message generator, SDR agent
+│   │   │   ├── ai/            # AI gateway, message generator, SDR agent, revenue agent
 │   │   │   ├── cache/         # Redis caching layer
-│   │   │   ├── database/      # SQLAlchemy repository implementations
-│   │   │   ├── email/         # Email sender (SMTP / SendGrid)
-│   │   │   ├── scraping/      # Scraping engine, plugins, proxy
-│   │   │   ├── webhooks/      # Inbound webhook handlers
+│   │   │   ├── database/      # SQLAlchemy repositories
+│   │   │   ├── email/         # SMTP / SendGrid sender
+│   │   │   ├── scraping/      # Playwright engine, plugins (Google Maps, Yelp, etc.)
+│   │   │   ├── deliverability/# Email deliverability & warmup
 │   │   │   └── whatsapp/      # WhatsApp Business API
-│   │   ├── workers/           # Celery task definitions
+│   │   ├── workers/           # Celery tasks (scoring, enrichment, scraping)
+│   │   ├── mcp/               # MCP server (tool exposure for AI agents)
 │   │   └── api/               # FastAPI routers
-│   │       ├── v1/            # API version 1 routes
-│   │       ├── app.py         # App factory & middleware
-│   │       └── dependencies.py # Auth & DI dependencies
-│   └── .env                   # Environment config (not in git)
+│   │       ├── v1/            # API v1 (45+ endpoints)
+│   │       ├── app.py         # App factory, CORS, middleware, metrics
+│   │       └── dependencies.py # Auth & DI
+│   └── .env                   # Environment (gitignored)
 ├── frontend/
 │   ├── src/
-│   │   ├── app/               # Next.js App Router pages
+│   │   ├── app/
 │   │   │   ├── (auth)/        # Login, Register
-│   │   │   └── (dashboard)/   # Dashboard, Analytics, Campaigns, etc.
-│   │   ├── components/        # Shared React components
-│   │   ├── lib/               # API client, utilities
-│   │   └── stores/            # Zustand state stores
-│   ├── package.json
-│   └── tailwind.config.ts
-├── data/
-│   └── seeds/                 # Database seed scripts
-├── docs/                      # Architecture & API documentation
-├── infra/
-│   ├── docker/                # Dockerfiles & production compose
-│   └── k8s/                   # Kubernetes manifests (future)
-├── .github/workflows/ci.yml   # CI/CD pipeline (lint → test → build)
-├── docker-compose.yml         # Development services
-└── Makefile                   # Development shortcuts
+│   │   │   └── (dashboard)/   # 14 routes including Nexus AI, Discovery, Companies, etc.
+│   │   ├── components/
+│   │   │   ├── ui/            # Design system: Button, Card, Badge
+│   │   │   ├── kanban/        # Drag-and-drop KanbanBoard
+│   │   │   ├── revenue-agent/ # RevenueAgentChat (conversational AI)
+│   │   │   ├── leads/LeadCard.tsx
+│   │   │   └── map/MapView.tsx
+│   │   ├── lib/               # API client, cn() utility, types
+│   │   └── stores/            # Zustand auth store
+│   ├── tailwind.config.ts     # Extended with 12+ animations, electric/cyan palette
+│   └── globals.css            # 551-line glassmorphism design system
+├── infra/docker/              # Dockerfiles & production compose
+├── .github/workflows/ci.yml   # CI/CD pipeline
+├── docker-compose.yml         # Dev services (hardened, no hardcoded secrets)
+└── Makefile                   # Dev shortcuts
 ```
 
 ---
@@ -423,21 +414,40 @@ The GitHub Actions workflow (`ci.yml`) runs three jobs on every push/PR:
 
 ---
 
+## Nexus Premium Features
+
+### AI Revenue Agent (`/revenue-agent`)
+A conversational AI agent that understands natural language and executes actions across the platform. Chat in Spanish or English to search companies, enrich data, score opportunities, analyze pipeline, and check campaign status. Backend: `backend/src/infrastructure/ai/revenue_agent/`. Frontend: `frontend/src/components/revenue-agent/RevenueAgentChat.tsx`.
+
+### Real-Time WebSocket Chat (`/conversations`)
+Each conversation connects via WebSocket for real-time messaging with AI SDR agent responses. Authentication via token, automatic reconnection, and optimistic message updates.
+
+### Drag-and-Drop Kanban Pipeline (`/deals`)
+Native HTML5 drag-and-drop Kanban board with animated drop zones, deal cards with value/probability, and stage transitions. Component: `frontend/src/components/kanban/KanbanBoard.tsx`.
+
+### Premium Design System
+551-line glassmorphism CSS system (`frontend/src/app/globals.css`) with electric purple + cyan accents, animated gradients, glow effects, shimmer skeletons, and premium scrollbars. Tailwind config extended with 12+ custom animations, mesh gradients, and semantic color tokens.
+
+### Enhanced Security
+- Redis-backed sliding window rate limiting (replaced leaky in-memory version)
+- Production secrets validation (min 32 chars, entropy check, no defaults)
+- CORS restricted to explicit methods/headers in production
+- WebSocket duplicate-accept bug fixed
+- Mandatory tenant_id in Celery scoring tasks (multi-tenancy compliance)
+- API keys removed from docker-compose (env_file only)
+
 ## Known Gaps / Roadmap
 
 | Priority | Feature | Status |
 |----------|---------|--------|
-| High | Wire API client into frontend pages (currently mock data) | Not started |
+| High | Add comprehensive test coverage (Playwright e2estests, pytest integration) | Not started |
 | High | Implement `cleanup_stale_jobs` and `check_pending_conversations` Celery tasks | Stub |
-| High | Fix `"Ganado"` vs `"won"` stage name mismatch in analytics | Bug |
-| High | Implement WhatsApp sender (package empty, generator exists) | Partial |
-| Medium | Implement `cache`, `webhooks`, `integration` infrastructure packages | Stub |
+| Medium | Implement WhatsApp sender (package empty, generator exists) | Partial |
 | Medium | Add Alembic migration history (only `create_all` exists) | Not started |
-| Medium | Implement WebSocket auth + real-time AI responses | Stub |
 | Medium | Conversation summary AI uses placeholder template | Stub |
 | Low | `parse_intent` route bypasses use-case constructor | Fragile |
-| Low | Add test coverage beyond smoke tests | Missing |
 | Low | `Contact` domain model has no repo/routes/enrichment | Stub |
+| Low | Production deployment: TLS reverse proxy, backups, IaC | Not started |
 
 ---
 

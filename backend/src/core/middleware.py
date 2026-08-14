@@ -6,7 +6,6 @@ Uses pure ASGI middleware to avoid event loop issues with BaseHTTPMiddleware.
 from __future__ import annotations
 
 import time
-from collections import defaultdict
 from typing import TYPE_CHECKING
 
 import structlog
@@ -18,43 +17,82 @@ if TYPE_CHECKING:
 logger = structlog.get_logger()
 
 
-class RateLimitMiddleware:
-    """ASGI middleware: simple in-memory rate limiter per IP."""
+def _extract_client_ip(scope: Scope) -> str:
+    """Best-effort client IP extraction respecting X-Forwarded-For."""
+    for header_name, header_value in scope.get("headers", []):
+        if header_name == b"x-forwarded-for":
+            return header_value.decode().split(",")[0].strip()
+        if header_name == b"host":
+            return header_value.decode()
+    return "unknown"
 
-    def __init__(self, app: ASGIApp, max_requests: int = 100, window_seconds: int = 60) -> None:
+
+class RateLimitMiddleware:
+    """ASGI middleware: Redis-backed sliding-window rate limiter per IP.
+
+    Uses a Redis sorted set so the limit is shared across all workers/instances.
+    Each request is scored by timestamp; entries older than the window are pruned
+    atomically with a ZREMRANGEBYSCORE + ZADD + ZCARD + EXPIRE pipeline.
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        max_requests: int = 100,
+        window_seconds: int = 60,
+        redis_key_prefix: str = "rl",
+    ) -> None:
         self.app = app
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self._requests: dict[str, list[float]] = defaultdict(list)
+        self.redis_key_prefix = redis_key_prefix
+
+    async def _get_redis(self):
+        from src.core.redis import get_redis
+
+        return await get_redis()
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        client_ip = "unknown"
-        for header_name, header_value in scope.get("headers", []):
-            if header_name == b"x-forwarded-for":
-                client_ip = header_value.decode().split(",")[0].strip()
-                break
-            if header_name == b"host":
-                client_ip = header_value.decode()
-
+        client_ip = _extract_client_ip(scope)
+        key = f"{self.redis_key_prefix}:{client_ip}"
         now = time.time()
-        self._requests[client_ip] = [
-            t for t in self._requests[client_ip] if now - t < self.window_seconds
-        ]
+        window_start = now - self.window_seconds
 
-        if len(self._requests[client_ip]) >= self.max_requests:
-            logger.warning("rate_limit_exceeded", ip=client_ip)
+        try:
+            redis = await self._get_redis()
+            # Atomic sliding-window update: prune old, add current, count, set ttl.
+            async with redis.pipeline(transaction=False) as pipe:
+                pipe.zremrangebyscore(key, 0, window_start)
+                pipe.zadd(key, {f"{now}:{id(scope)}": now})
+                pipe.zcard(key)
+                pipe.expire(key, self.window_seconds + 1)
+                results = await pipe.execute()
+            current_count = int(results[2] or 0)
+        except Exception as exc:
+            # If Redis is down, fail open but log — better to serve than 500 every request.
+            logger.error("rate_limit_redis_error", error=str(exc), ip=client_ip)
+            await self.app(scope, receive, send)
+            return
+
+        if current_count >= self.max_requests:
+            logger.warning("rate_limit_exceeded", ip=client_ip, count=current_count)
             resp = JSONResponse(
-                content={"error": {"message": "Rate limit exceeded"}},
+                content={
+                    "error": {
+                        "message": "Rate limit exceeded",
+                        "retry_after_seconds": self.window_seconds,
+                    }
+                },
                 status_code=429,
+                headers={"Retry-After": str(self.window_seconds)},
             )
             await resp(scope, receive, send)
             return
 
-        self._requests[client_ip].append(now)
         await self.app(scope, receive, send)
 
 

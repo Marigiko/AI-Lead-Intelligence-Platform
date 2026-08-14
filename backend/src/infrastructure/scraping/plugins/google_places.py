@@ -10,7 +10,7 @@ from typing import Any
 import httpx
 import structlog
 
-from src.core.config import settings
+from src.core.config import get_settings
 from src.infrastructure.scraping.engine import ScrapeResult
 from src.infrastructure.scraping.plugins.base import BaseScraper, ScraperConfig
 

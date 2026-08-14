@@ -6,6 +6,16 @@ from typing import Literal
 from pydantic import Field, PostgresDsn, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Insecure defaults that must be overridden in production via env vars.
+_INSECURE_DEFAULTS = (
+    "change-me-in-production",
+    "secret",
+    "password",
+    "admin",
+    "default",
+    "test",
+)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -21,7 +31,8 @@ class Settings(BaseSettings):
     api_url: str = "http://localhost:8000"
     environment: Literal["development", "testing", "staging", "production"] = "development"
     debug: bool = True
-    secret_key: str = "change-me-in-production"  # noqa: S105
+    # Default is an obviously-invalid placeholder — production must override via env.
+    secret_key: str = "INSECURE-OVERRIDE-VIA-ENV-CHANGE-ME"  # noqa: S105
 
     # Database
     database_url: PostgresDsn = Field(
@@ -39,7 +50,8 @@ class Settings(BaseSettings):
     elasticsearch_url: str = "http://localhost:9200"
 
     # Auth — JWT
-    jwt_secret_key: str = "change-me-in-production"  # noqa: S105
+    # Default is an obviously-invalid placeholder — production must override via env.
+    jwt_secret_key: str = "INSECURE-OVERRIDE-VIA-ENV-CHANGE-ME"  # noqa: S105
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 30
     jwt_refresh_token_expire_days: int = 7

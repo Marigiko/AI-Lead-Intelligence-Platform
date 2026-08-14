@@ -1,0 +1,9 @@
+# WSL2 Configuration for Docker performance
+# Place this file at C:\Users\<your-user>\.wslconfig
+# Then run: wsl --shutdown and restart WSL
+
+# [wsl2]
+# memory=16GB
+# processors=8
+# swap=8GB
+# localhostForwarding=true

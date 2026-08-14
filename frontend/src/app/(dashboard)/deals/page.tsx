@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { GripVertical, Plus, DollarSign, Calendar, Building2, MoreHorizontal, X, ChevronRight, ChevronLeft } from "lucide-react";
+import { Plus, DollarSign, Calendar, Building2, X, Sparkles } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Deal, Company } from "@/lib/types";
+import { KanbanBoard } from "@/components/kanban";
+import { cn } from "@/lib/cn";
 
 interface Stage {
   name: string;
@@ -242,85 +244,20 @@ export default function DealsPage() {
         </div>
       )}
 
-      {/* Kanban Board */}
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {stages.map((stage, stageIndex) => (
-          <div key={stage.name} className="flex-shrink-0 w-72">
-            {/* Stage Header */}
-            <div className="flex items-center justify-between mb-3 px-1">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
-                <h3 className="text-sm font-medium text-foreground">{stage.name}</h3>
-                <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                  {stage.deals.length}
-                </span>
-              </div>
-              <MoreHorizontal size={14} className="text-muted-foreground" />
-            </div>
-
-            {/* Deal Cards */}
-            <div className="space-y-2 min-h-[100px]">
-              {stage.deals.map((deal) => (
-                <div
-                  key={deal.id}
-                  onClick={() => setSelectedDeal(deal.id)}
-                  className={`bg-card rounded-lg border p-3 cursor-pointer transition-all hover:border-primary/50 ${
-                    selectedDeal === deal.id ? "ring-2 ring-primary" : ""
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <p className="text-sm font-medium text-foreground leading-tight">{deal.title}</p>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <DollarSign size={12} />
-                      ${(deal.value ?? 0).toLocaleString()}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar size={12} />
-                      {deal.created_at ? new Date(deal.created_at).toLocaleDateString() : "—"}
-                    </span>
-                  </div>
-                  {/* Move buttons */}
-                  <div className="flex items-center gap-1 mt-2 pt-2 border-t">
-                    {stageIndex > 0 && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); moveDeal(deal.id, stage.name, "backward"); }}
-                        className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
-                        title="Mover atras"
-                      >
-                        <ChevronLeft size={14} />
-                      </button>
-                    )}
-                    {stageIndex < stages.length - 1 && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); moveDeal(deal.id, stage.name, "forward"); }}
-                        className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
-                        title="Mover adelante"
-                      >
-                        <ChevronRight size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-
-              {stage.deals.length === 0 && (
-                <div className="text-center text-muted-foreground text-xs py-4 border border-dashed rounded">
-                  Sin negocios
-                </div>
-              )}
-            </div>
-
-            {/* Stage Total */}
-            {stage.deals.length > 0 && (
-              <div className="mt-2 px-1 text-xs font-medium text-muted-foreground">
-                Total: ${stage.deals.reduce((a, d) => a + (d.value ?? 0), 0).toLocaleString()}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      {/* Kanban Board con Drag & Drop Premium */}
+      <KanbanBoard
+        stages={stages.map((s) => ({
+          id: s.name,
+          name: s.name,
+          color: s.color,
+          deals: s.deals,
+        }))}
+        onMoveDeal={async (dealId: string, fromStage: string, toStage: string) => {
+          await api.post(`/api/v1/deals/${dealId}/move`, { stage: toStage });
+          fetchData();
+        }}
+        onDealClick={(deal: Deal) => setSelectedDeal(deal.id)}
+      />
     </div>
   );
 }

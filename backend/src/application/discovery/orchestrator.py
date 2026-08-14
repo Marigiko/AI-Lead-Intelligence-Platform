@@ -132,7 +132,8 @@ class DiscoveryOrchestrator:
                 try:
                     from src.workers.scoring_tasks import score_batch
                     company_ids_str = [str(cid) for cid in self._new_company_ids]
-                    score_batch.delay(company_ids_str, search_intent=request.intent)
+                    # tenant_id is mandatory — pass it from orchestrator context
+                    score_batch.delay(company_ids_str, str(self._tenant_id), search_intent=request.intent)
                     logger.info("scoring_dispatched", count=len(company_ids_str))
                 except Exception as e:
                     logger.warning("scoring_dispatch_failed", error=str(e))

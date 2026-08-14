@@ -124,12 +124,14 @@ export default function CompanyDetailPage({ params }: { params: { id: string } }
                   </div>
                 </div>
               )}
-              {company.address && (
+              {(company.city || company.province) && (
                 <div className="flex items-center gap-3 p-3 rounded-md bg-muted/30">
                   <MapPin size={16} className="text-muted-foreground" />
                   <div>
-                    <p className="text-xs text-muted-foreground">Direccion</p>
-                    <p className="text-sm font-medium text-foreground">{company.address}</p>
+                    <p className="text-xs text-muted-foreground">Ubicacion</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {[company.city, company.province, company.country].filter(Boolean).join(", ")}
+                    </p>
                   </div>
                 </div>
               )}

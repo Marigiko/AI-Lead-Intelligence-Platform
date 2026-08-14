@@ -197,7 +197,7 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
     except WebSocketDisconnect:
         return
 
-    await websocket.accept()
+    # ConnectionManager.connect() already calls websocket.accept() internally.
     await manager.connect(websocket, conversation_id)
     try:
         while True:

@@ -2,7 +2,7 @@ import contextlib
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from src.api.dependencies import CurrentUser, DBSession, OptionalUser
@@ -87,9 +87,12 @@ async def batch_score(data: BatchScoreRequest, user: CurrentUser, session: DBSes
     """Score multiple companies. Runs enrichment + AI analysis."""
     from src.workers.scoring_tasks import score_batch
 
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="User has no tenant")
+
     company_ids = [str(cid) for cid in data.company_ids]
-    # Dispatch async scoring
-    score_batch.delay(company_ids)
+    # Dispatch async scoring — tenant_id is mandatory to scope enrichment
+    score_batch.delay(company_ids, str(user.tenant_id))
     return {"message": f"Scoring dispatched for {len(company_ids)} companies"}
 
 

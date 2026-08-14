@@ -1,0 +1,44 @@
+# Version control
+.git/
+.gitignore
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# AI agent workspaces
+.mimocode/
+.serena/
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+dist/
+build/
+*.egg-info/

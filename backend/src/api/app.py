@@ -7,6 +7,12 @@ from typing import TYPE_CHECKING, Any
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    CollectorRegistry,
+    generate_latest,
+    multiprocess,
+)
 
 from src.api.v1.analytics import router as analytics_router
 from src.api.v1.auth import router as auth_router
@@ -20,6 +26,7 @@ from src.api.v1.plugins import router as plugins_router
 from src.api.v1.agent import router as agent_router
 from src.api.v1.deliverability import router as deliverability_router
 from src.api.v1.forms import router as forms_router
+from src.api.v1.revenue_agent import router as revenue_agent_router
 from src.api.v1.scoring import router as scoring_router
 from src.api.v1.crm import router as crm_router
 from src.api.v1.settings import router as settings_router
@@ -43,17 +50,50 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger()
 
-_INSECURE_DEFAULTS = ("change-me-in-production", "secret", "password", "admin")
+_INSECURE_DEFAULTS = (
+    "change-me-in-production",
+    "INSECURE-OVERRIDE-VIA-ENV-CHANGE-ME",
+    "secret",
+    "password",
+    "admin",
+    "default",
+    "test",
+)
+_MIN_SECRET_LENGTH = 32
 
 
 def _validate_production_settings(settings: Any) -> None:
+    """Fail fast if production secrets are weak or still set to defaults.
+
+    Checks:
+      - secret_key / jwt_secret_key are not in the insecure-defaults list.
+      - Secrets meet a minimum length (32 chars) to resist brute force.
+      - Secrets are not trivially repetitive (e.g. "aaaa...aaaa").
+      - Debug is disabled in production.
+    """
     import sys
 
     errors: list[str] = []
+
     if settings.secret_key in _INSECURE_DEFAULTS:
-        errors.append("SECRET_KEY must be set to a secure random value")
+        errors.append("SECRET_KEY is still set to an insecure default — set a secure random value")
     if settings.jwt_secret_key in _INSECURE_DEFAULTS:
-        errors.append("JWT_SECRET_KEY must be set to a secure random value")
+        errors.append("JWT_SECRET_KEY is still set to an insecure default — set a secure random value")
+
+    if len(settings.secret_key) < _MIN_SECRET_LENGTH:
+        errors.append(f"SECRET_KEY is too short ({len(settings.secret_key)} chars) — must be at least {_MIN_SECRET_LENGTH}")
+    if len(settings.jwt_secret_key) < _MIN_SECRET_LENGTH:
+        errors.append(f"JWT_SECRET_KEY is too short ({len(settings.jwt_secret_key)} chars) — must be at least {_MIN_SECRET_LENGTH}")
+
+    # Reject trivially repetitive secrets like "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    if len(set(settings.secret_key)) < 8:
+        errors.append("SECRET_KEY is too repetitive — use a high-entropy random value")
+    if len(set(settings.jwt_secret_key)) < 8:
+        errors.append("JWT_SECRET_KEY is too repetitive — use a high-entropy random value")
+
+    if settings.debug:
+        errors.append("DEBUG must be False in production")
+
     if errors:
         for err in errors:
             logger.critical("insecure_config", error=err)
@@ -120,6 +160,22 @@ def create_app() -> FastAPI:
     )
 
     # CORS (pure ASGI to avoid event loop issues)
+    # Production: restrict methods/headers to the minimum needed.
+    # Non-permissive environments get explicit, narrow values.
+    if settings.is_production:
+        cors_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+        cors_headers = [
+            "authorization",
+            "content-type",
+            "x-requested-with",
+            "accept",
+            "origin",
+            "x-csrf-token",
+        ]
+    else:
+        cors_methods = ["*"]
+        cors_headers = ["*"]
+
     wrapped = _CORSMiddleware(
         SecurityHeadersMiddleware(
             RateLimitMiddleware(RequestLoggingMiddleware(app), max_requests=100, window_seconds=60)
@@ -128,8 +184,8 @@ def create_app() -> FastAPI:
         ),
         allow_origins=settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=cors_methods,
+        allow_headers=cors_headers,
     )
 
     # Request timing middleware
@@ -173,12 +229,23 @@ def create_app() -> FastAPI:
     app.include_router(settings_router, prefix="/api/v1")
     app.include_router(deliverability_router, prefix="/api/v1")
     app.include_router(agent_router, prefix="/api/v1")
+    app.include_router(revenue_agent_router, prefix="/api/v1")
     app.include_router(forms_router, prefix="/api/v1")
 
     # Health check
     @app.get("/health")
     async def health() -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
         return {"status": "ok", "version": "0.1.0"}
+
+    # Prometheus metrics endpoint
+    @app.get("/metrics")
+    async def metrics() -> Response:  # pyright: ignore[reportUnusedFunction]
+        registry = CollectorRegistry()
+        multiprocess.MultiProcessCollector(registry)
+        return Response(
+            content=generate_latest(registry),
+            media_type=CONTENT_TYPE_LATEST,
+        )
 
     @app.get("/api/v1/health")
     async def api_health() -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
