@@ -16,7 +16,13 @@ from src.api.v1.conversations import router as conversations_router
 from src.api.v1.deals import router as deals_router
 from src.api.v1.discovery import router as discovery_router
 from src.api.v1.enrichment import router as enrichment_router
+from src.api.v1.plugins import router as plugins_router
+from src.api.v1.agent import router as agent_router
+from src.api.v1.deliverability import router as deliverability_router
+from src.api.v1.forms import router as forms_router
 from src.api.v1.scoring import router as scoring_router
+from src.api.v1.crm import router as crm_router
+from src.api.v1.settings import router as settings_router
 from src.api.v1.tracking import router as tracking_router
 from src.core.config import get_settings
 from src.core.database import close_db, init_db
@@ -162,6 +168,12 @@ def create_app() -> FastAPI:
     app.include_router(conversations_router, prefix="/api/v1")
     app.include_router(deals_router, prefix="/api/v1")
     app.include_router(analytics_router, prefix="/api/v1")
+    app.include_router(plugins_router, prefix="/api/v1")
+    app.include_router(crm_router, prefix="/api/v1")
+    app.include_router(settings_router, prefix="/api/v1")
+    app.include_router(deliverability_router, prefix="/api/v1")
+    app.include_router(agent_router, prefix="/api/v1")
+    app.include_router(forms_router, prefix="/api/v1")
 
     # Health check
     @app.get("/health")

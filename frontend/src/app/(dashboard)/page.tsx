@@ -45,14 +45,15 @@ export default function DashboardPage() {
       try {
         setLoading(true);
         const [overviewData, companiesData, pipelineData] = await Promise.all([
-          api.get<AnalyticsOverview>("/api/v1/analytics/dashboard"),
+          api.get<AnalyticsOverview>("/api/v1/analytics/overview"),
           api.get<CompanyWithDetail>("/api/v1/companies", { limit: "5", sort_by: "opportunity_score" }),
-          api.get<{ stage: string; count: number }[]>("/api/v1/analytics/pipeline"),
+          api.get<{ stages: { stage: string; count: number }[] }>("/api/v1/analytics/pipeline"),
         ]);
         setOverview(overviewData);
         setTopCompanies(companiesData.items);
+        const pipelineItems = pipelineData.stages || [];
         setPipeline(
-          pipelineData.map((p) => ({
+          pipelineItems.map((p) => ({
             stage: p.stage,
             count: p.count,
             color: STAGE_COLORS[p.stage] || "#94a3b8",
@@ -213,7 +214,6 @@ export default function DashboardPage() {
               Metricas Rapidas
             </h2>
           </div>
-<<<<<<< HEAD
           <div className="p-4 grid grid-cols-2 gap-4">
             <div className="p-3 rounded-md bg-muted/30 text-center">
               <p className="text-2xl font-bold text-foreground">{overview?.total_companies || 0}</p>
@@ -231,12 +231,6 @@ export default function DashboardPage() {
               <p className="text-2xl font-bold text-foreground">{overview?.total_deals || 0}</p>
               <p className="text-xs text-muted-foreground">Negocios</p>
             </div>
-          </div>
-        </div>
-      </div>
-=======
-          <div className="p-4 space-y-3">
-            <p className="text-sm text-muted-foreground">Sin actividad reciente</p>
           </div>
         </div>
       </div>
@@ -268,7 +262,6 @@ export default function DashboardPage() {
           <p className="text-xs text-muted-foreground mt-1">nuevas empresas analizadas</p>
         </div>
       </div>
->>>>>>> 1d445a262b56d144109b26577a27dc6b5f6f10e4
     </div>
   );
 }

@@ -1,8 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { Search, MapPin, Target, Loader2, CheckCircle2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
+import { Search, MapPin, Target, Loader2, CheckCircle2, List, Map as MapIcon } from "lucide-react";
 import { api } from "@/lib/api-client";
+import LeadCard from "@/components/leads/LeadCard";
+
+const MapView = dynamic(() => import("@/components/map/MapView"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[500px] w-full rounded-lg border flex items-center justify-center bg-muted/20">
+      <p className="text-muted-foreground">Cargando mapa...</p>
+    </div>
+  ),
+});
 
 const intentExamples = [
   "Empresas que necesiten una pagina web",
@@ -15,6 +26,27 @@ const intentExamples = [
   "Clinicas dentales",
 ];
 
+interface CompanyLead {
+  id: string;
+  name: string;
+  domain: string | null;
+  industry: string | null;
+  city: string | null;
+  province: string | null;
+  country: string | null;
+  phone: string | null;
+  email: string | null;
+  whatsapp: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  opportunity_score: number;
+  status: string;
+  recommended_services: string[] | null;
+  has_ssl: boolean | null;
+  created_at: string;
+}
+
 interface SearchResult {
   search_id: string;
   status: string;
@@ -26,11 +58,15 @@ interface SearchResult {
 
 export default function DiscoveryPage() {
   const [location, setLocation] = useState("Resistencia, Chaco, Argentina");
-  const [radius, setRadius] = useState("5");
+  const [radius, setRadius] = useState("10");
   const [intent, setIntent] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState<SearchResult | null>(null);
+  const [leads, setLeads] = useState<CompanyLead[]>([]);
+  const [selectedLead, setSelectedLead] = useState<CompanyLead | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([-27.4513, -58.9866]); // Resistencia
   const [error, setError] = useState("");
+  const [viewMode, setViewMode] = useState<"split" | "map" | "list">("split");
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,22 +75,37 @@ export default function DiscoveryPage() {
     setIsSearching(true);
     setError("");
     setResult(null);
+    setLeads([]);
+    setSelectedLead(null);
 
     try {
-      const data = await api.post<SearchResult>("/api/v1/discovery/search", {
+      // Run discovery search
+      const searchData = await api.post<SearchResult>("/api/v1/discovery/search", {
         location,
         radius_km: parseInt(radius),
         intent,
         max_results: 50,
-        sources: ["openstreetmap"],
+        sources: ["google_maps", "openstreetmap", "paginas_amarillas"],
       });
-      setResult(data);
+      setResult(searchData);
+
+      // Fetch all companies (they will show in list; map shows search area)
+      const companiesData = await api.get<{ items: CompanyLead[] }>("/api/v1/companies", {
+        limit: "100",
+      });
+      // Show newest companies first (most recent discoveries)
+      const sorted = companiesData.items.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      setLeads(sorted.slice(0, 20));
     } catch (err: any) {
       setError(err.message || "Error en la busqueda");
     } finally {
       setIsSearching(false);
     }
   };
+
+  const leadsWithCoords = leads.filter((l) => l.latitude && l.longitude);
 
   return (
     <div className="space-y-6">
@@ -141,37 +192,122 @@ export default function DiscoveryPage() {
         </form>
       </div>
 
-      {/* Results */}
+      {/* Error */}
       {error && (
         <div className="bg-destructive/10 text-destructive text-sm rounded-md p-4">{error}</div>
       )}
 
+      {/* Results */}
       {result && (
-        <div className="bg-card rounded-lg border p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <CheckCircle2 size={20} className="text-green-500" />
-            <h2 className="font-semibold text-foreground">Busqueda Completada</h2>
+        <>
+          {/* Stats */}
+          <div className="bg-card rounded-lg border p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 size={18} className="text-green-500" />
+                  <span className="text-sm font-medium">{result.companies_found} encontradas</span>
+                </div>
+                <span className="text-sm text-muted-foreground">{result.companies_new} nuevas</span>
+                <span className="text-xs text-muted-foreground">
+                  Fuentes: {result.sources_used.join(", ")}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 border rounded-md p-0.5">
+                <button
+                  onClick={() => setViewMode("split")}
+                  className={`p-1.5 rounded ${viewMode === "split" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                  title="Vista split"
+                >
+                  <List size={14} />
+                </button>
+                <button
+                  onClick={() => setViewMode("map")}
+                  className={`p-1.5 rounded ${viewMode === "map" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                  title="Solo mapa"
+                >
+                  <MapIcon size={14} />
+                </button>
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`p-1.5 rounded ${viewMode === "list" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                  title="Solo lista"
+                >
+                  <List size={14} />
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-3 rounded-md bg-muted/30 text-center">
-              <p className="text-2xl font-bold text-foreground">{result.companies_found}</p>
-              <p className="text-xs text-muted-foreground">Encontradas</p>
-            </div>
-            <div className="p-3 rounded-md bg-muted/30 text-center">
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{result.companies_new}</p>
-              <p className="text-xs text-muted-foreground">Nuevas</p>
-            </div>
-            <div className="p-3 rounded-md bg-muted/30 text-center">
-              <p className="text-2xl font-bold text-foreground">{result.sources_used.length}</p>
-              <p className="text-xs text-muted-foreground">Fuentes</p>
-            </div>
-            <div className="p-3 rounded-md bg-muted/30 text-center">
-              <p className="text-2xl font-bold text-foreground">{result.status}</p>
-              <p className="text-xs text-muted-foreground">Estado</p>
-            </div>
+
+          {/* Map + Leads Split View */}
+          <div className={`grid gap-4 ${viewMode === "split" ? "lg:grid-cols-5" : "grid-cols-1"}`}>
+            {/* Map */}
+            {(viewMode === "split" || viewMode === "map") && (
+              <div className={viewMode === "split" ? "lg:col-span-3" : ""}>
+                <MapView
+                  center={mapCenter}
+                  radiusKm={parseInt(radius)}
+                  leads={leadsWithCoords.map((l) => ({
+                    id: l.id,
+                    name: l.name,
+                    latitude: l.latitude!,
+                    longitude: l.longitude!,
+                    opportunity_score: l.opportunity_score,
+                    phone: l.phone,
+                    email: l.email,
+                    domain: l.domain,
+                    address: l.address,
+                    industry: l.industry,
+                    status: l.status,
+                  }))}
+                  onMarkerClick={(lead) => {
+                    const fullLead = leads.find((l) => l.id === lead.id);
+                    if (fullLead) setSelectedLead(fullLead);
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Leads List */}
+            {(viewMode === "split" || viewMode === "list") && (
+              <div className={`space-y-3 ${viewMode === "split" ? "lg:col-span-2" : ""}`}>
+                <p className="text-sm text-muted-foreground">{leads.length} leads encontrados</p>
+                <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+                  {leads.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4 text-center">
+                      Haz una busqueda para ver los resultados
+                    </p>
+                  ) : (
+                    leads.map((lead) => (
+                      <LeadCard
+                        key={lead.id}
+                        lead={lead}
+                        selected={selectedLead?.id === lead.id}
+                        onClick={() => {
+                          setSelectedLead(lead);
+                          if (lead.latitude && lead.longitude) {
+                            setMapCenter([lead.latitude, lead.longitude]);
+                          }
+                        }}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-          <p className="text-xs text-muted-foreground mt-4">
-            Fuentes: {result.sources_used.join(", ")}
+        </>
+      )}
+
+      {/* Empty state */}
+      {!result && !isSearching && (
+        <div className="bg-card rounded-lg border p-12 text-center">
+          <MapPin size={48} className="mx-auto text-muted-foreground/50 mb-4" />
+          <p className="text-muted-foreground">
+            Define tu busqueda y encuentra leads en tu zona
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            Usa el mapa para ver donde estan y la lista para ver sus datos de contacto
           </p>
         </div>
       )}

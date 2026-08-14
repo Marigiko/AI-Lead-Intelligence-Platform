@@ -124,6 +124,7 @@ class AIGateway:
         seo_data: dict[str, Any] | None = None,
         tech_data: dict[str, Any] | None = None,
         social_data: dict[str, Any] | None = None,
+        search_intent: str | None = None,
     ) -> dict[str, Any]:
         """Use AI to analyze a company and generate insights."""
         settings = get_settings()
@@ -137,6 +138,8 @@ class AIGateway:
             context_parts.append(f"Location: {loc}, {prov}")
         if company_data.get("domain"):
             context_parts.append(f"Website: {company_data['domain']}")
+        else:
+            context_parts.append("No website")
         if seo_data:
             context_parts.append(f"SEO Score: {seo_data.get('score', 'N/A')}/100")
             if seo_data.get("issues"):
@@ -158,6 +161,11 @@ class AIGateway:
 
         context = "\n".join(context_parts)
 
+        # Include search intent for justification
+        intent_context = ""
+        if search_intent:
+            intent_context = f"\n\nUser searched for: '{search_intent}'. Explain WHY this company matches this search intent."
+
         sys_prompt = (
             "You are a B2B sales analyst for a digital services agency. "
             "Analyze the company and provide a JSON response with: "
@@ -165,6 +173,8 @@ class AIGateway:
             "opportunity_breakdown (object with scores for "
             "web_presence, seo, social, automation, technical), "
             "analysis (2-3 paragraph text analysis in Spanish), "
+            "justification (1-2 sentences in Spanish explaining WHY this company matches the user's search intent, "
+            "specifically mentioning what digital needs it has that match what the user is looking for), "
             "recommended_services (array of service names), "
             "estimated_deal_value (number in USD), "
             "priority (high/medium/low), probability (0-100), "
@@ -174,7 +184,7 @@ class AIGateway:
 
         messages = [
             {"role": "system", "content": sys_prompt},
-            {"role": "user", "content": f"Analyze this company:\n\n{context}"},
+            {"role": "user", "content": f"Analyze this company:\n\n{context}{intent_context}"},
         ]
 
         response = await self.complete(

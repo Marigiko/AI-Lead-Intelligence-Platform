@@ -14,6 +14,9 @@ import structlog
 from src.core.events import DomainEvent, get_event_bus
 from src.infrastructure.ai.gateway import get_ai_gateway
 from src.infrastructure.database.repositories.company_repo import SQLAlchemyCompanyRepository
+from src.infrastructure.enrichment.email_scraper import get_email_scraper
+from src.infrastructure.enrichment.phone_parser import get_phone_parser
+from src.infrastructure.enrichment.waterfall import get_waterfall_enrichment
 from src.infrastructure.scraping.seo_analyzer import get_seo_analyzer
 from src.infrastructure.scraping.social_detector import get_social_detector
 from src.infrastructure.scraping.tech_detector import get_tech_detector
@@ -99,6 +102,29 @@ class EnrichmentOrchestrator:
         except Exception as e:
             logger.error("social_detection_failed", company_id=str(company_id), error=str(e))
 
+        # 4. Email extraction (waterfall: scrape → guess → Hunter.io)
+        try:
+            if not company.email:
+                waterfall = await get_waterfall_enrichment()
+                contact_result = await waterfall.enrich(company.domain, existing_email=company.email)
+                if contact_result.email:
+                    company.email = contact_result.email
+                    updated_fields.append("email")
+                    logger.info("email_enriched", company_id=str(company_id), source=contact_result.sources_used)
+        except Exception as e:
+            logger.error("email_enrichment_failed", company_id=str(company_id), error=str(e))
+
+        # 5. Phone number normalization
+        try:
+            if company.phone:
+                parser = await get_phone_parser()
+                parsed = parser.parse(company.phone)
+                if parsed:
+                    company.phone = parsed.number
+                    updated_fields.append("phone")
+        except Exception as e:
+            logger.error("phone_parse_failed", company_id=str(company_id), error=str(e))
+
         # Update timestamp
         company.last_enriched_at = datetime.now(UTC)
         await self._company_repo.update(company)
@@ -127,7 +153,7 @@ class EnrichmentOrchestrator:
             "seo_score": company.seo_score,
         }
 
-    async def analyze_and_score(self, company_id: UUID) -> dict[str, Any]:
+    async def analyze_and_score(self, company_id: UUID, search_intent: str | None = None) -> dict[str, Any]:
         """Run enrichment + AI analysis + scoring."""
         # First enrich
         enrich_result: dict[str, Any] = await self.enrich_company(company_id)
@@ -170,12 +196,14 @@ class EnrichmentOrchestrator:
                         ]
                     )
                 },
+                search_intent=search_intent,
             )
 
             # Update company with AI results
             company.opportunity_score = ai_result.get("opportunity_score", 0)
             company.opportunity_breakdown = ai_result.get("opportunity_breakdown", {})
             company.opportunity_analysis = ai_result.get("analysis", "")
+            company.justification = ai_result.get("justification", "")
             company.recommended_services = ai_result.get("recommended_services", [])
             company.estimated_deal_value = ai_result.get("estimated_deal_value", 0)
             company.last_analyzed_at = datetime.now(UTC)

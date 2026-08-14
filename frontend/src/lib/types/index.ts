@@ -22,6 +22,7 @@ export interface Company {
   opportunity_score: number;
   status: string;
   created_at: string;
+  justification?: string | null;
 }
 
 export interface CompanyDetail extends Company {
@@ -36,22 +37,40 @@ export interface CompanyDetail extends Company {
   linkedin_url: string | null;
   facebook_url: string | null;
   instagram_url: string | null;
+  tiktok_url: string | null;
   google_place_id: string | null;
   google_rating: number | null;
   google_review_count: number | null;
   tech_stack: string[];
   cms: string | null;
   framework: string | null;
+  hosting: string | null;
+  analytics_tools: string[];
   has_ssl: boolean | null;
   has_whatsapp: boolean | null;
   has_chatbot: boolean | null;
+  has_crm: boolean | null;
+  has_ecommerce: boolean | null;
   seo_score: number | null;
   page_speed_mobile: number | null;
   page_speed_desktop: number | null;
+  core_web_vitals: Record<string, string> | null;
+  domain_authority: number | null;
+  backlink_count: number | null;
+  domain_age_years: number | null;
   opportunity_breakdown: Record<string, number>;
   opportunity_analysis: string | null;
   recommended_services: string[] | null;
   estimated_deal_value: number | null;
+  priority: string | null;
+  probability: number | null;
+  urgency: string | null;
+}
+
+export interface LeadContactConfidence {
+  email: "verified" | "inferred" | "unverified";
+  phone: "verified" | "inferred" | "unverified";
+  source: string;
 }
 
 export interface CompanyListResponse {

@@ -51,8 +51,13 @@ class GoogleMapsScraper(BaseScraper):
                     await cookie_btn.first.click()
                     await page.wait_for_timeout(1000)
 
-            # Type search query
-            search_box = page.locator('#searchboxinput, input[name="search"]')
+            # Type search query (try multiple selectors for Google Maps updates)
+            search_box = page.locator('input[name="q"], input[name="search"], #searchboxinput')
+            try:
+                await search_box.wait_for(state='visible', timeout=10000)
+            except Exception:
+                logger.warning("google_maps_search_box_not_found")
+                return results
             await search_box.fill(search_query)
             await search_box.press("Enter")
             await page.wait_for_timeout(3000)
@@ -112,6 +117,7 @@ class GoogleMapsScraper(BaseScraper):
 
                     href = await item.get_attribute("href") or ""
                     place_id = self._extract_place_id(href)
+                    coords = self._extract_coordinates_from_url(href)
 
                     result = ScrapeResult(
                         source="google_maps",
@@ -120,6 +126,8 @@ class GoogleMapsScraper(BaseScraper):
                             "name": name,
                             "google_maps_url": href,
                             "google_place_id": place_id,
+                            "latitude": coords[0] if coords else None,
+                            "longitude": coords[1] if coords else None,
                         },
                         confidence=0.9,
                         source_url=href,
@@ -150,6 +158,11 @@ class GoogleMapsScraper(BaseScraper):
 
         return results
 
+    @staticmethod
+    def _clean_text(text: str) -> str:
+        """Remove non-printable and weird unicode characters."""
+        return "".join(c for c in text if c.isprintable() and ord(c) < 0xE000).strip()
+
     async def _get_place_details(self, page: Page, url: str) -> dict[str, Any] | None:
         """Navigate to a place page and extract detailed information."""
         if not url:
@@ -160,17 +173,23 @@ class GoogleMapsScraper(BaseScraper):
 
         details: dict[str, Any] = {}
 
+        # Extract coordinates from URL
+        coords = self._extract_coordinates_from_url(url)
+        if coords:
+            details["latitude"] = coords[0]
+            details["longitude"] = coords[1]
+
         # Extract address
         with contextlib.suppress(Exception):
             addr = page.locator('button[data-item-id="address"] .Io6YTe, [data-item-id="address"]')
             if await addr.count() > 0:
-                details["address"] = (await addr.first.inner_text()).strip()
+                details["address"] = self._clean_text(await addr.first.inner_text())
 
         # Extract phone
         with contextlib.suppress(Exception):
             phone = page.locator('button[data-item-id*="phone"] .Io6YTe, [data-item-id*="phone"]')
             if await phone.count() > 0:
-                details["phone"] = (await phone.first.inner_text()).strip()
+                details["phone"] = self._clean_text(await phone.first.inner_text())
 
         # Extract website
         with contextlib.suppress(Exception):
@@ -178,7 +197,7 @@ class GoogleMapsScraper(BaseScraper):
                 'a[data-item-id="authority"] .Io6YTe, [data-item-id="authority"]'
             )
             if await website.count() > 0:
-                details["website"] = (await website.first.inner_text()).strip()
+                details["website"] = self._clean_text(await website.first.inner_text())
 
         # Extract rating
         with contextlib.suppress(Exception):
@@ -233,3 +252,14 @@ class GoogleMapsScraper(BaseScraper):
     def _extract_place_id(self, url: str) -> str:
         match = re.search(r"place/([^/]+)", url)
         return match.group(1) if match else ""
+
+    @staticmethod
+    def _extract_coordinates_from_url(url: str) -> tuple[float, float] | None:
+        """Extract lat/lng from Google Maps URL patterns."""
+        match = re.search(r"@(-?\d+\.\d+),(-?\d+\.\d+)", url)
+        if match:
+            return float(match.group(1)), float(match.group(2))
+        match = re.search(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)", url)
+        if match:
+            return float(match.group(1)), float(match.group(2))
+        return None

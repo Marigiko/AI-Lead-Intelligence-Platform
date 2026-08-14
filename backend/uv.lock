@@ -18,7 +18,9 @@ dependencies = [
     { name = "babel" },
     { name = "beautifulsoup4" },
     { name = "celery", extra = ["redis"] },
+    { name = "dnspython" },
     { name = "elasticsearch", extra = ["async"] },
+    { name = "email-validator" },
     { name = "fastapi" },
     { name = "geopy" },
     { name = "httpx" },
@@ -29,6 +31,7 @@ dependencies = [
     { name = "opentelemetry-api" },
     { name = "orjson" },
     { name = "passlib", extra = ["bcrypt"] },
+    { name = "phonenumbers" },
     { name = "playwright" },
     { name = "prometheus-client" },
     { name = "pydantic", extra = ["email"] },
@@ -65,7 +68,9 @@ requires-dist = [
     { name = "babel", specifier = ">=2.16.0" },
     { name = "beautifulsoup4", specifier = ">=4.12.0" },
     { name = "celery", extras = ["redis"], specifier = ">=5.4.0" },
+    { name = "dnspython", specifier = ">=2.7.0" },
     { name = "elasticsearch", extras = ["async"], specifier = ">=8.15.0" },
+    { name = "email-validator", specifier = ">=2.1.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "geopy", specifier = ">=2.4.0" },
     { name = "httpx", specifier = ">=0.27.0" },
@@ -78,6 +83,7 @@ requires-dist = [
     { name = "opentelemetry-api", specifier = ">=1.27.0" },
     { name = "orjson", specifier = ">=3.10.0" },
     { name = "passlib", extras = ["bcrypt"], specifier = ">=1.7.4" },
+    { name = "phonenumbers", specifier = ">=8.13.0" },
     { name = "playwright", specifier = ">=1.48.0" },
     { name = "prometheus-client", specifier = ">=0.21.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.9.0" },
@@ -2058,6 +2064,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/5a/82/42f767fc1c1143d6fd36efb827202a2d997a375e160a71eb2888a925aac1/pathspec-1.1.1.tar.gz", hash = "sha256:17db5ecd524104a120e173814c90367a96a98d07c45b2e10c2f3919fff91bf5a", size = 135180, upload-time = "2026-04-27T01:46:08.907Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl", hash = "sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189", size = 57328, upload-time = "2026-04-27T01:46:07.06Z" },
+]
+
+[[package]]
+name = "phonenumbers"
+version = "9.0.36"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/21/3f1561d3527b27121d6872aeecb6df2a8de8e11af9c36f5a0bd3483d2655/phonenumbers-9.0.36.tar.gz", hash = "sha256:60ca2a6870d2532d6e960105790e85e9d69270ede81746d10cf57f5e437b93ec", size = 2307271, upload-time = "2026-08-01T06:13:44.954Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/39/5d/74fbcb16b29927bf378f4ec4d47c7b48488b93e1f1af64b26544daf1d55f/phonenumbers-9.0.36-py2.py3-none-any.whl", hash = "sha256:c16a5b95178345ec2df1954578a4ac09e937443b2ee992dd7b15a8e8c81f4acf", size = 2595528, upload-time = "2026-08-01T06:13:41.591Z" },
 ]
 
 [[package]]

@@ -100,14 +100,12 @@ class OutreachUseCases:
             if not company:
                 continue
 
+            # Add lead even without email (can be enriched later)
             email = company.email
-            if not email:
-                continue
-
             lead = CampaignLead(
                 campaign_id=campaign_id,
                 company_id=cid,
-                email=email,
+                email=email or "",
                 status="pending",
                 tracking_id=str(uuid.uuid4()),
             )

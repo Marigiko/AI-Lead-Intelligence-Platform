@@ -2,14 +2,23 @@
 Discovery application DTOs.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from datetime import datetime
+from typing import Any
+from uuid import UUID
 
-if TYPE_CHECKING:
-    from datetime import datetime
-    from uuid import UUID
+
+@dataclass
+class CompanySummary:
+    """Brief company info in search results."""
+    id: UUID
+    name: str
+    domain: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    has_website: bool | None = None
 
 
 @dataclass
@@ -25,7 +34,7 @@ class DiscoverySearchRequest:
 
 @dataclass
 class DiscoverySearchResponse:
-    """Result of a discovery search."""
+    """Result of a Discovery search."""
 
     search_id: UUID
     status: str  # "running", "completed", "failed"
@@ -37,6 +46,8 @@ class DiscoverySearchResponse:
     started_at: datetime | None = None
     completed_at: datetime | None = None
     error: str | None = None
+    company_ids: list[UUID] = field(default_factory=list)
+    companies: list[CompanySummary] = field(default_factory=list)
 
 
 @dataclass

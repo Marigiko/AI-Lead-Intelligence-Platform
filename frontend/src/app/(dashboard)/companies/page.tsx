@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, Search, Filter, ExternalLink, Phone, Mail } from "lucide-react";
+import { Building2, Search, Phone, Mail, Globe, MapPin } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Company, CompanyListResponse } from "@/lib/types";
+import Link from "next/link";
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -30,34 +31,32 @@ function StatusBadge({ status }: { status: string }) {
 
 export default function CompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [industryFilter, setIndustryFilter] = useState("");
 
-  useEffect(() => {
-    async function fetchCompanies() {
-      try {
-        setLoading(true);
-        setError(null);
-        const params: Record<string, string> = { limit: "50" };
-        if (search) params.search = search;
-        if (industryFilter) params.industry = industryFilter;
-        const data = await api.get<CompanyListResponse>("/api/v1/companies", params);
-        setCompanies(data.items);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Error al cargar empresas");
-      } finally {
-        setLoading(false);
-      }
+  async function loadCompanies() {
+    try {
+      setLoading(true);
+      setError(null);
+      const params: Record<string, string> = { limit: "50" };
+      if (search) params.search = search;
+      if (industryFilter) params.industry = industryFilter;
+      const data = await api.get<CompanyListResponse>("/api/v1/companies", params);
+      setCompanies(data.items);
+      setTotal(data.total);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cargar empresas");
+    } finally {
+      setLoading(false);
     }
-    fetchCompanies();
-  }, [search, industryFilter]);
+  }
 
-  const filtered = companies.filter((c) => {
-    if (industryFilter && c.industry !== industryFilter) return false;
-    return true;
-  });
+  useEffect(() => {
+    loadCompanies();
+  }, [search, industryFilter]);
 
   const industries = [...new Set(companies.map((c) => c.industry).filter(Boolean))] as string[];
 
@@ -107,13 +106,12 @@ export default function CompaniesPage() {
             placeholder="Buscar empresas..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && loadCompanies()}
             className="w-full pl-10 pr-4 py-2 rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
         <select
           value={industryFilter}
-          onChange={(e) => { setIndustryFilter(e.target.value); setTimeout(loadCompanies, 100); }}
+          onChange={(e) => setIndustryFilter(e.target.value)}
           className="px-3 py-2 rounded-md border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="">Todas las industrias</option>
@@ -129,33 +127,46 @@ export default function CompaniesPage() {
           <thead>
             <tr className="border-b bg-muted/50">
               <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Empresa</th>
-              <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden md:table-cell">Industria</th>
+              <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden md:table-cell">Contacto</th>
               <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground hidden lg:table-cell">Ubicacion</th>
               <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground">Score</th>
               <th className="text-center px-4 py-3 text-sm font-medium text-muted-foreground hidden sm:table-cell">Estado</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((company) => (
+            {companies.map((company) => (
               <tr
                 key={company.id}
-                className="border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                className="border-b last:border-b-0 hover:bg-muted/30 transition-colors"
               >
                 <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
+                  <Link href={`/companies/${company.id}`} className="flex items-center gap-3 group">
+                    <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
                       <Building2 size={14} className="text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-foreground">{company.name}</p>
+                      <p className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{company.name}</p>
                       {company.domain && (
-                        <p className="text-xs text-muted-foreground">{company.domain}</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Globe size={10} /> {company.domain}
+                        </p>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 </td>
-                <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
-                  {company.industry}
+                <td className="px-4 py-3 hidden md:table-cell">
+                  <div className="space-y-1">
+                    {company.phone && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Phone size={10} /> {company.phone}
+                      </p>
+                    )}
+                    {company.email && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Mail size={10} /> {company.email}
+                      </p>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
                   {company.city}
@@ -167,36 +178,15 @@ export default function CompaniesPage() {
                   <StatusBadge status={company.status} />
                 </td>
               </tr>
-            </thead>
-            <tbody>
-              {filtered.map((company) => (
-                <tr key={company.id} className="border-b last:border-b-0 hover:bg-muted/30 transition-colors cursor-pointer">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-                        <Building2 size={14} className="text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{company.name}</p>
-                        {company.domain && <p className="text-xs text-muted-foreground">{company.domain}</p>}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">{company.industry || "-"}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">{company.city || "-"}</td>
-                  <td className="px-4 py-3 text-center"><ScoreBadge score={company.opportunity_score} /></td>
-                  <td className="px-4 py-3 text-center hidden sm:table-cell"><StatusBadge status={company.status} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <div className="p-8 text-center text-muted-foreground">No se encontraron empresas</div>
-          )}
-        </div>
-      )}
+            ))}
+          </tbody>
+        </table>
+        {companies.length === 0 && (
+          <div className="p-8 text-center text-muted-foreground">No se encontraron empresas</div>
+        )}
+      </div>
 
-      <div className="text-sm text-muted-foreground">Mostrando {filtered.length} de {total} empresas</div>
+      <div className="text-sm text-muted-foreground">Mostrando {companies.length} de {total} empresas</div>
     </div>
   );
 }

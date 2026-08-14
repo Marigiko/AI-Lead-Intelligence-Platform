@@ -85,6 +85,7 @@ class Company(Base):
     opportunity_score: Mapped[int] = mapped_column(Integer, default=0, index=True)
     opportunity_breakdown: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     opportunity_analysis: Mapped[str | None] = mapped_column(Text)
+    justification: Mapped[str | None] = mapped_column(Text)
     recommended_services: Mapped[list[str] | None] = mapped_column(JSONB)
     estimated_deal_value: Mapped[float | None] = mapped_column(Float)
 

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   MessageSquare, Send, Bot, User, ArrowUpCircle, Clock,
-  CheckCircle2, XCircle, Calendar, AlertTriangle, MoreHorizontal,
+  CheckCircle2, XCircle, Calendar, AlertTriangle, MoreHorizontal, Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { Conversation } from "@/lib/types";
@@ -35,33 +35,82 @@ function SentimentBadge({ sentiment }: { sentiment: string | null }) {
   return <span className={`text-xs font-medium ${color}`}>{sentiment}</span>;
 }
 
+interface Message {
+  id: string;
+  role: "user" | "assistant" | "contact";
+  content: string;
+  created_at: string;
+}
+
 export default function ConversationsPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [sending, setSending] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const fetchConversations = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await api.get<ConversationListResponse>("/api/v1/conversations", { limit: "50" });
+      setConversations(data.items);
+      if (data.items.length > 0 && !selectedId) {
+        setSelectedId(data.items[0].id);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cargar conversaciones");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedId]);
 
   useEffect(() => {
-    async function fetchConversations() {
+    fetchConversations();
+  }, [fetchConversations]);
+
+  // Fetch messages when conversation selected
+  useEffect(() => {
+    if (!selectedId) return;
+    async function fetchMessages() {
       try {
-        setLoading(true);
-        setError(null);
-        const data = await api.get<ConversationListResponse>("/api/v1/conversations", { limit: "50" });
-        setConversations(data.items);
-        if (data.items.length > 0 && !selectedId) {
-          setSelectedId(data.items[0].id);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Error al cargar conversaciones");
-      } finally {
-        setLoading(false);
+        const data = await api.get<{ items: Message[] }>(`/api/v1/conversations/${selectedId}/messages`);
+        setMessages(data.items || []);
+      } catch {
+        setMessages([]);
       }
     }
-    fetchConversations();
-  }, []);
+    fetchMessages();
+  }, [selectedId]);
 
   const selectedConv = conversations.find((c) => c.id === selectedId) || conversations[0];
+
+  // Send message
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedId) return;
+    try {
+      setSending(true);
+      await api.post(`/api/v1/conversations/${selectedId}/messages`, {
+        message: newMessage,
+        role: "contact",
+      });
+      setNewMessage("");
+      // Refresh messages
+      const data = await api.get<{ items: Message[] }>(`/api/v1/conversations/${selectedId}/messages`);
+      setMessages(data.items || []);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al enviar");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const filteredConversations = conversations.filter((c) =>
+    c.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (c.summary || "").toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (loading) {
     return (
@@ -114,12 +163,14 @@ export default function ConversationsPage() {
           <div className="p-3 border-b">
             <input
               type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar conversaciones..."
               className="w-full px-3 py-1.5 rounded-md border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             />
           </div>
           <div className="flex-1 overflow-y-auto">
-            {conversations.map((conv) => {
+            {filteredConversations.map((conv) => {
               const status = statusConfig[conv.status] || statusConfig.active;
               return (
                 <div
@@ -176,17 +227,33 @@ export default function ConversationsPage() {
               </div>
             </div>
 
-            {/* Summary */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              <div className="rounded-lg px-4 py-3 bg-muted text-foreground">
-                <p className="text-xs font-medium text-muted-foreground mb-1">Resumen</p>
-                <p className="text-sm">{selectedConv.summary || "Sin resumen"}</p>
-              </div>
-              {selectedConv.next_action && (
-                <div className="rounded-lg px-4 py-3 bg-yellow-50 dark:bg-yellow-900/10">
-                  <p className="text-xs font-medium text-yellow-700 dark:text-yellow-400 mb-1">Proxima accion</p>
-                  <p className="text-sm text-yellow-800 dark:text-yellow-300">{selectedConv.next_action}</p>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {messages.length === 0 ? (
+                <div className="rounded-lg px-4 py-3 bg-muted text-foreground">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Resumen</p>
+                  <p className="text-sm">{selectedConv.summary || "Sin resumen"}</p>
                 </div>
+              ) : (
+                messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.role === "contact" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div className={`max-w-[80%] rounded-lg px-3 py-2 ${
+                      msg.role === "contact"
+                        ? "bg-primary text-primary-foreground"
+                        : msg.role === "assistant"
+                        ? "bg-muted text-foreground"
+                        : "bg-blue-100 dark:bg-blue-900/20 text-foreground"
+                    }`}>
+                      <p className="text-sm">{msg.content}</p>
+                      <p className="text-[10px] opacity-60 mt-1">
+                        {new Date(msg.created_at).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
 
@@ -197,11 +264,16 @@ export default function ConversationsPage() {
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Escribir como humano (intervencion)..."
+                  onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+                  placeholder="Escribir mensaje..."
                   className="flex-1 px-3 py-2 rounded-md border bg-background text-foreground text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 />
-                <button className="px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors flex items-center gap-2">
-                  <Send size={14} />
+                <button
+                  onClick={sendMessage}
+                  disabled={sending || !newMessage.trim()}
+                  className="px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                   Enviar
                 </button>
               </div>

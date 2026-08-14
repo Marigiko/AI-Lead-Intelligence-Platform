@@ -2,8 +2,6 @@
 Generic directory scraper — handles multiple business directories.
 """
 
-from __future__ import annotations
-
 import contextlib
 
 import structlog
@@ -14,6 +12,11 @@ from src.infrastructure.scraping.engine import ScrapeResult
 from src.infrastructure.scraping.plugins.base import BaseScraper, ScraperConfig
 
 logger = structlog.get_logger()
+
+
+def _clean_text(text: str) -> str:
+    """Remove non-printable and weird unicode characters."""
+    return "".join(c for c in text if c.isprintable() and ord(c) < 0xE000).strip()
 
 
 class PaginasAmarillasScraper(BaseScraper):
@@ -55,19 +58,19 @@ class PaginasAmarillasScraper(BaseScraper):
                     with contextlib.suppress(Exception):
                         name_el = listing.locator("h2, .business-name, .aviso-title")
                         if await name_el.count() > 0:
-                            name = (await name_el.first.inner_text()).strip()
+                            name = _clean_text(await name_el.first.inner_text())
 
                     phone = ""
                     with contextlib.suppress(Exception):
                         phone_el = listing.locator(".phone, .telefono, [data-phone]")
                         if await phone_el.count() > 0:
-                            phone = (await phone_el.first.inner_text()).strip()
+                            phone = _clean_text(await phone_el.first.inner_text())
 
                     address = ""
                     with contextlib.suppress(Exception):
                         addr_el = listing.locator(".address, .direccion, .location")
                         if await addr_el.count() > 0:
-                            address = (await addr_el.first.inner_text()).strip()
+                            address = _clean_text(await addr_el.first.inner_text())
 
                     website = ""
                     with contextlib.suppress(Exception):
@@ -140,7 +143,7 @@ class BingPlacesScraper(BaseScraper):
                     with contextlib.suppress(Exception):
                         name_el = listing.locator("h2, .b_entityTitle")
                         if await name_el.count() > 0:
-                            name = (await name_el.first.inner_text()).strip()
+                            name = _clean_text(await name_el.first.inner_text())
 
                     if name:
                         results.append(

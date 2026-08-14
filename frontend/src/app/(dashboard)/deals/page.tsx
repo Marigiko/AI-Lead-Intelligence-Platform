@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { GripVertical, Plus, DollarSign, Calendar, Building2, MoreHorizontal } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { GripVertical, Plus, DollarSign, Calendar, Building2, MoreHorizontal, X, ChevronRight, ChevronLeft } from "lucide-react";
 import { api } from "@/lib/api-client";
-import { Deal } from "@/lib/types";
+import { Deal, Company } from "@/lib/types";
 
 interface Stage {
   name: string;
@@ -18,66 +18,107 @@ interface CRMStage {
   position: number;
 }
 
-const DEFAULT_STAGES = ["prospeccion", "Contacto", "Calificado", "propuesta", "Negociacion", "Ganado", "Perdido"];
-const STAGE_COLORS: Record<string, string> = {
-  prospeccion: "#94a3b8",
-  Contacto: "#60a5fa",
-  Calificado: "#a78bfa",
-  propuesta: "#fbbf24",
-  Negociacion: "#f97316",
-  Ganado: "#22c55e",
-  Perdido: "#ef4444",
-};
+const DEFAULT_STAGES: Stage[] = [
+  { name: "prospeccion", color: "#94a3b8", deals: [] },
+  { name: "Contacto", color: "#60a5fa", deals: [] },
+  { name: "Calificado", color: "#a78bfa", deals: [] },
+  { name: "propuesta", color: "#fbbf24", deals: [] },
+  { name: "Negociacion", color: "#f97316", deals: [] },
+  { name: "Ganado", color: "#22c55e", deals: [] },
+  { name: "Perdido", color: "#ef4444", deals: [] },
+];
 
 export default function DealsPage() {
-  const [stages, setStages] = useState<Stage[]>([]);
+  const [stages, setStages] = useState<Stage[]>(DEFAULT_STAGES);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDeal, setSelectedDeal] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
-        const [deals, crmStages] = await Promise.all([
-          api.get<Deal[]>("/api/v1/deals"),
-          api.get<CRMStage[]>("/api/v1/crm/stages").catch(() => null),
-        ]);
+  // Deal creation modal
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [newStage, setNewStage] = useState("prospeccion");
+  const [newCompanyId, setNewCompanyId] = useState("");
+  const [creating, setCreating] = useState(false);
 
-        // Build stage list from API or fall back to defaults
-        const stageDefinitions: { name: string; color: string }[] = crmStages
-          ? crmStages
-              .sort((a, b) => a.position - b.position)
-              .map((s) => ({ name: s.name, color: s.color || STAGE_COLORS[s.name] || "#94a3b8" }))
-          : DEFAULT_STAGES.map((name) => ({ name, color: STAGE_COLORS[name] || "#94a3b8" }));
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [dealsData, crmStages] = await Promise.all([
+        api.get<{ items: Deal[] }>("/api/v1/deals", { limit: "100" }),
+        api.get<CRMStage[]>("/api/v1/crm/stages").catch(() => null),
+      ]);
 
-        // Group deals by stage
-        const stageMap: Record<string, Deal[]> = {};
-        for (const def of stageDefinitions) {
-          stageMap[def.name] = [];
-        }
-        for (const deal of deals) {
-          if (!stageMap[deal.stage]) {
-            stageMap[deal.stage] = [];
-          }
-          stageMap[deal.stage].push(deal);
-        }
+      const deals = dealsData.items || [];
+      const stageDefs = crmStages || DEFAULT_STAGES;
 
-        setStages(
-          stageDefinitions.map((def) => ({
-            name: def.name,
-            color: def.color,
-            deals: stageMap[def.name] || [],
-          }))
-        );
-      } catch (err: any) {
-        setError(err.error?.message || err.message || "Failed to load deals");
-      } finally {
-        setLoading(false);
+      // Group deals by stage
+      const stageMap: Record<string, Deal[]> = {};
+      for (const def of stageDefs) {
+        stageMap[def.name] = [];
       }
+      for (const deal of deals) {
+        if (!stageMap[deal.stage]) {
+          stageMap[deal.stage] = [];
+        }
+        stageMap[deal.stage].push(deal);
+      }
+
+      setStages(
+        stageDefs.map((def) => ({
+          name: def.name,
+          color: def.color || "#94a3b8",
+          deals: stageMap[def.name] || [],
+        }))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al cargar pipeline");
+    } finally {
+      setLoading(false);
     }
-    fetchData();
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Create deal
+  const createDeal = async () => {
+    if (!newTitle) return;
+    try {
+      setCreating(true);
+      await api.post("/api/v1/deals", {
+        title: newTitle,
+        value: newValue ? parseFloat(newValue) : null,
+        stage: newStage,
+        company_id: newCompanyId || undefined,
+      });
+      setNewTitle("");
+      setNewValue("");
+      setShowNewForm(false);
+      fetchData();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al crear negocio");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  // Move deal to next/previous stage
+  const moveDeal = async (dealId: string, currentStage: string, direction: "forward" | "backward") => {
+    const currentIndex = stages.findIndex((s) => s.name === currentStage);
+    const newIndex = direction === "forward" ? currentIndex + 1 : currentIndex - 1;
+    if (newIndex < 0 || newIndex >= stages.length) return;
+
+    const newStage = stages[newIndex].name;
+    try {
+      await api.post(`/api/v1/deals/${dealId}/move`, { stage: newStage });
+      fetchData();
+    } catch (err) {
+      alert("Error al mover negocio");
+    }
+  };
 
   if (loading) {
     return (
@@ -110,7 +151,10 @@ export default function DealsPage() {
           <h1 className="text-2xl font-bold text-foreground">Pipeline / CRM</h1>
           <p className="text-muted-foreground">Gestiona tu pipeline de ventas y negocios</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors">
+        <button
+          onClick={() => setShowNewForm(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors"
+        >
           <Plus size={16} />
           Nuevo Negocio
         </button>
@@ -138,9 +182,69 @@ export default function DealsPage() {
         </div>
       </div>
 
+      {/* Deal Creation Modal */}
+      {showNewForm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg border w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-foreground">Nuevo Negocio</h3>
+              <button onClick={() => setShowNewForm(false)} className="p-1 hover:bg-muted rounded">
+                <X size={16} />
+              </button>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Titulo</label>
+              <input
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="Ej: Constructora Chaco - Website nuevo"
+                className="w-full px-3 py-2 rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Valor (USD)</label>
+                <input
+                  type="number"
+                  value={newValue}
+                  onChange={(e) => setNewValue(e.target.value)}
+                  placeholder="5000"
+                  className="w-full px-3 py-2 rounded-md border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Stage</label>
+                <select
+                  value={newStage}
+                  onChange={(e) => setNewStage(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  {stages.map((s) => (
+                    <option key={s.name} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={createDeal}
+                disabled={creating || !newTitle}
+                className="px-4 py-2 rounded-md bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
+                {creating ? "Creando..." : "Crear Negocio"}
+              </button>
+              <button onClick={() => setShowNewForm(false)} className="px-4 py-2 rounded-md border text-muted-foreground hover:bg-accent">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Kanban Board */}
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {stages.map((stage) => (
+        {stages.map((stage, stageIndex) => (
           <div key={stage.name} className="flex-shrink-0 w-72">
             {/* Stage Header */}
             <div className="flex items-center justify-between mb-3 px-1">
@@ -166,7 +270,6 @@ export default function DealsPage() {
                 >
                   <div className="flex items-start justify-between mb-2">
                     <p className="text-sm font-medium text-foreground leading-tight">{deal.title}</p>
-                    <GripVertical size={14} className="text-muted-foreground flex-shrink-0 cursor-grab" />
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
@@ -174,21 +277,39 @@ export default function DealsPage() {
                       ${(deal.value ?? 0).toLocaleString()}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Building2 size={12} />
-                      {deal.company_id.slice(0, 8)}
+                      <Calendar size={12} />
+                      {deal.created_at ? new Date(deal.created_at).toLocaleDateString() : "—"}
                     </span>
                   </div>
-                  <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground">
-                    <Calendar size={12} />
-                    {deal.created_at ? new Date(deal.created_at).toLocaleDateString() : "—"}
+                  {/* Move buttons */}
+                  <div className="flex items-center gap-1 mt-2 pt-2 border-t">
+                    {stageIndex > 0 && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); moveDeal(deal.id, stage.name, "backward"); }}
+                        className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
+                        title="Mover atras"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                    )}
+                    {stageIndex < stages.length - 1 && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); moveDeal(deal.id, stage.name, "forward"); }}
+                        className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
+                        title="Mover adelante"
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
 
-              {/* Add Deal Button */}
-              <button className="w-full p-2 rounded-lg border border-dashed text-xs text-muted-foreground hover:bg-muted/30 transition-colors">
-                + Agregar negocio
-              </button>
+              {stage.deals.length === 0 && (
+                <div className="text-center text-muted-foreground text-xs py-4 border border-dashed rounded">
+                  Sin negocios
+                </div>
+              )}
             </div>
 
             {/* Stage Total */}

@@ -22,7 +22,16 @@ from src.infrastructure.scraping.geocoding import GeocodeResult, get_geocoding_s
 from src.infrastructure.scraping.intent_parser import get_intent_parser
 from src.infrastructure.scraping.plugins.base import ScraperConfig
 from src.infrastructure.scraping.plugins.registry import get_plugin_registry
+from src.infrastructure.enrichment.waterfall import get_waterfall_enrichment
 from src.infrastructure.scraping.rate_limiter import get_rate_limiter_registry
+
+
+def _clean_text(text: str | None) -> str | None:
+    """Remove non-printable and weird unicode characters."""
+    if not text:
+        return text
+    cleaned = "".join(c for c in text if c.isprintable() and ord(c) < 0xE000)
+    return cleaned.strip() or None
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -118,6 +127,18 @@ class DiscoveryOrchestrator:
             # Step 7: Save to database
             new_count = await self._save_companies(unique_results)
 
+            # Step 8: Trigger async scoring with AI justification
+            if self._new_company_ids:
+                try:
+                    from src.workers.scoring_tasks import score_batch
+                    company_ids_str = [str(cid) for cid in self._new_company_ids]
+                    score_batch.delay(company_ids_str, search_intent=request.intent)
+                    logger.info("scoring_dispatched", count=len(company_ids_str))
+                except Exception as e:
+                    logger.warning("scoring_dispatch_failed", error=str(e))
+
+            await self._session.commit()
+
             completed_at = datetime.now(UTC)
             logger.info(
                 "discovery_completed",
@@ -142,6 +163,8 @@ class DiscoveryOrchestrator:
                 },
                 started_at=started_at,
                 completed_at=completed_at,
+                company_ids=self._new_company_ids,
+                companies=self._new_company_summaries,
             )
 
         except Exception as e:
@@ -154,6 +177,8 @@ class DiscoveryOrchestrator:
             )
 
     async def _geocode(self, location: str) -> GeocodeResult | None:
+        if not location or len(location.strip()) < 3:
+            return None
         return await self._geocoding.geocode(location)
 
     def _select_sources(
@@ -229,7 +254,7 @@ class DiscoveryOrchestrator:
             try:
                 if plugin.requires_browser:
                     context = await browser_pool.acquire()
-                results = await plugin.scrape(context, config)
+                results = await plugin.scrape_with_retry(context, config, max_retries=2, base_delay=1.0)
                 await plugin.on_after_scrape(results)
                 return results
             except Exception as e:
@@ -260,6 +285,8 @@ class DiscoveryOrchestrator:
     async def _save_companies(self, results: list[ScrapeResult]) -> int:
         """Save deduplicated results to the database. Returns count of new companies."""
         new_count = 0
+        self._new_company_ids: list[UUID] = []
+        self._new_company_summaries: list[CompanySummary] = []
         for result in results:
             data = result.normalized_data
             name = data.get("name", "")
@@ -283,21 +310,32 @@ class DiscoveryOrchestrator:
                             setattr(existing, field, data[field])
                     continue
 
+            # Geocode address if no coordinates
+            lat = data.get("latitude")
+            lng = data.get("longitude")
+            if not lat or not lng:
+                address = _clean_text(data.get("address", ""))
+                city = _clean_text(data.get("city", ""))
+                if address or city:
+                    geo = await self._geocode(f"{address}, {city}" if address else city)
+                    if geo:
+                        lat = geo.latitude
+                        lng = geo.longitude
+
             # Create new company
             company = Company(
                 tenant_id=self._tenant_id,
                 name=name,
                 domain=domain,
-                industry=data.get("industry"),
-                city=data.get("city"),
-                province=data.get("province"),
-                country=data.get("country"),
-                address=data.get("address"),
-                latitude=data.get("latitude"),
-                longitude=data.get("longitude"),
-                phone=data.get("phone"),
-                email=data.get("email"),
-                website=domain,
+                industry=_clean_text(data.get("industry")),
+                city=_clean_text(data.get("city")),
+                province=_clean_text(data.get("province")),
+                country=_clean_text(data.get("country")),
+                address=_clean_text(data.get("address")),
+                latitude=lat,
+                longitude=lng,
+                phone=_clean_text(data.get("phone")),
+                email=_clean_text(data.get("email")),
                 google_place_id=data.get("google_place_id"),
                 google_rating=data.get("google_rating"),
                 google_review_count=data.get("google_review_count"),
@@ -318,6 +356,20 @@ class DiscoveryOrchestrator:
             )
             self._session.add(source)
             await self._session.flush()
+
+            # Track new company for response
+            from src.application.discovery.dto import CompanySummary
+            self._new_company_ids.append(company.id)
+            self._new_company_summaries.append(CompanySummary(
+                id=company.id,
+                name=company.name,
+                domain=company.domain,
+                phone=company.phone,
+                email=company.email,
+                latitude=company.latitude,
+                longitude=company.longitude,
+                has_website=bool(company.domain),
+            ))
 
             new_count += 1
 

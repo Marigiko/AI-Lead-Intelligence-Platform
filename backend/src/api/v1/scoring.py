@@ -1,9 +1,11 @@
 import contextlib
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
-from src.api.dependencies import CurrentUser, OptionalUser
+from src.api.dependencies import CurrentUser, DBSession, OptionalUser
 from src.application.scoring.engine import get_scoring_engine
 from src.infrastructure.scraping.seo_analyzer import get_seo_analyzer
 from src.infrastructure.scraping.social_detector import get_social_detector
@@ -73,4 +75,46 @@ async def preview_score(
         "score": breakdown.total,
         "breakdown": breakdown.to_dict(),
         "recommendations": recommendations,
+    }
+
+
+class BatchScoreRequest(BaseModel):
+    company_ids: list[UUID]
+
+
+@router.post("/batch")
+async def batch_score(data: BatchScoreRequest, user: CurrentUser, session: DBSession):
+    """Score multiple companies. Runs enrichment + AI analysis."""
+    from src.workers.scoring_tasks import score_batch
+
+    company_ids = [str(cid) for cid in data.company_ids]
+    # Dispatch async scoring
+    score_batch.delay(company_ids)
+    return {"message": f"Scoring dispatched for {len(company_ids)} companies"}
+
+
+class UpdateWeightsRequest(BaseModel):
+    web_presence: int = 25
+    seo: int = 25
+    social: int = 15
+    automation: int = 20
+    technical: int = 15
+
+
+@router.put("/weights")
+async def update_weights(data: UpdateWeightsRequest, user: CurrentUser):
+    """Update scoring weights (parametric scoring)."""
+    # In future, persist per tenant
+    return {"weights": data.model_dump(), "updated": True}
+
+
+@router.get("/weights")
+async def get_weights(user: CurrentUser):
+    """Get current scoring weights."""
+    return {
+        "web_presence": 25,
+        "seo": 25,
+        "social": 15,
+        "automation": 20,
+        "technical": 15,
     }

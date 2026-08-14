@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  Mail,
 } from "lucide-react";
 
 const navItems = [
@@ -32,6 +33,7 @@ const navItems = [
   { href: "/conversations", label: "Conversaciones", icon: MessageSquare },
   { href: "/deals", label: "Pipeline", icon: Briefcase },
   { href: "/analytics", label: "Analiticas", icon: BarChart3 },
+  { href: "/deliverability", label: "Entregabilidad", icon: Mail },
   { href: "/scrapers", label: "Scrapers", icon: Globe },
   { href: "/settings", label: "Configuracion", icon: Settings },
 ];

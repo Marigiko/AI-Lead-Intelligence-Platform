@@ -48,11 +48,14 @@ export default function AnalyticsPage() {
     async function fetchData() {
       try {
         setLoading(true);
-        const [pipeline, industries, geography] = await Promise.all([
-          api.get<{ stage: string; count: number; value: number }[]>("/api/v1/analytics/pipeline"),
-          api.get<IndustryItem[]>("/api/v1/analytics/industries"),
-          api.get<GeoItem[]>("/api/v1/analytics/geography"),
+        const [pipelineData, industriesData, geoData] = await Promise.all([
+          api.get<{ stages: { stage: string; count: number; value: number }[] }>("/api/v1/analytics/pipeline"),
+          api.get<{ industries: IndustryItem[] }>("/api/v1/analytics/industries"),
+          api.get<{ locations: GeoItem[] }>("/api/v1/analytics/geo"),
         ]);
+        const pipeline = pipelineData.stages || [];
+        const industries = industriesData.industries || [];
+        const geography = geoData.locations || [];
         setPipelineData(
           pipeline.map((p) => ({
             ...p,
@@ -115,28 +118,24 @@ export default function AnalyticsPage() {
         <div className="bg-card rounded-lg border p-4">
           <div className="flex items-center justify-between">
             <Users size={18} className="text-muted-foreground" />
-            <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-0.5">
-              <ArrowUpRight size={12} /> +32
-            </span>
           </div>
-          <p className="text-2xl font-bold text-foreground mt-2">247</p>
-          <p className="text-xs text-muted-foreground">Empresas</p>
+          <p className="text-2xl font-bold text-foreground mt-2">{pipelineData.reduce((a, d) => a + d.count, 0)}</p>
+          <p className="text-xs text-muted-foreground">Empresas en Pipeline</p>
         </div>
         <div className="bg-card rounded-lg border p-4">
           <div className="flex items-center justify-between">
             <DollarSign size={18} className="text-muted-foreground" />
-            <span className="text-xs text-green-600 dark:text-green-400 flex items-center gap-0.5">
-              <ArrowUpRight size={12} /> +$8k
-            </span>
           </div>
           <p className="text-2xl font-bold text-foreground mt-2">${totalRevenue.toLocaleString()}</p>
-          <p className="text-xs text-muted-foreground">Ingresos</p>
+          <p className="text-xs text-muted-foreground">Ingresos (Ganados)</p>
         </div>
         <div className="bg-card rounded-lg border p-4">
           <div className="flex items-center justify-between">
             <Target size={18} className="text-muted-foreground" />
           </div>
-          <p className="text-2xl font-bold text-foreground mt-2">42%</p>
+          <p className="text-2xl font-bold text-foreground mt-2">
+            {pipelineData.length > 0 ? Math.round((pipelineData.find(d => d.stage === "Ganado")?.count || 0) / Math.max(pipelineData.reduce((a, d) => a + d.count, 0), 1) * 100) : 0}%
+          </p>
           <p className="text-xs text-muted-foreground">Tasa de Cierre</p>
         </div>
         <div className="bg-card rounded-lg border p-4">

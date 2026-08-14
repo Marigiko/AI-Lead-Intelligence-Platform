@@ -16,6 +16,7 @@ import structlog
 from playwright.async_api import Browser, BrowserContext, Playwright, async_playwright
 
 from src.core.config import get_settings
+from src.infrastructure.scraping.proxy import ProxyConfig, get_proxy_manager
 
 logger = structlog.get_logger()
 
@@ -115,18 +116,29 @@ class BrowserPool:
 
     async def _create_context(self) -> BrowserContext:
         assert self._browser is not None
-        return await self._browser.new_context(
-            viewport={"width": 1920, "height": 1080},
-            user_agent=(
+
+        # Get proxy from manager (round-robin)
+        proxy_manager = get_proxy_manager()
+        proxy = proxy_manager.get_proxy()
+        proxy_config: ProxyConfig | None = None
+
+        context_kwargs: dict[str, Any] = {
+            "viewport": {"width": 1920, "height": 1080},
+            "user_agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/131.0.0.0 Safari/537.36"
             ),
-            locale="es-AR",
-            timezone_id="America/Argentina/Buenos_Aires",
-            java_script_enabled=True,
-            bypass_csp=True,
-        )
+            "locale": "es-AR",
+            "timezone_id": "America/Argentina/Buenos_Aires",
+            "java_script_enabled": True,
+            "bypass_csp": True,
+        }
+
+        if proxy:
+            context_kwargs["proxy"] = {"server": proxy.url}
+
+        return await self._browser.new_context(**context_kwargs)
 
     @property
     def active_count(self) -> int:

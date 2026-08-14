@@ -33,6 +33,9 @@ class CompanyResponse(BaseModel):
     opportunity_score: int
     status: str
     created_at: Any
+    latitude: float | None = None
+    longitude: float | None = None
+    justification: str | None = None
 
     model_config = {"from_attributes": True}
 

@@ -2,8 +2,6 @@
 OpenStreetMap scraper — uses Overpass API for business discovery.
 """
 
-from __future__ import annotations
-
 from typing import Any
 
 import httpx
@@ -23,7 +21,11 @@ class OpenStreetMapScraper(BaseScraper):
     requires_browser = False
     default_rpm = 20
 
-    OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+    OVERPASS_URLS = [
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass.openstreetmap.ru/api/interpreter",
+    ]
 
     async def scrape(
         self,
@@ -50,14 +52,32 @@ class OpenStreetMapScraper(BaseScraper):
             out body;
             """
 
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(
-                    self.OVERPASS_URL,
-                    data={"data": query},
-                    headers={"Accept": "application/json"},
-                )
-                resp.raise_for_status()
-                data = resp.json()
+            data = None
+            for overpass_url in self.OVERPASS_URLS:
+                try:
+                    async with httpx.AsyncClient(timeout=30) as client:
+                        resp = await client.post(
+                            overpass_url,
+                            data={"data": query},
+                            headers={
+                                "Accept": "application/json",
+                                "User-Agent": "AILeadPlatform/0.1 (contact@aileadplatform.com)",
+                            },
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            break
+                        logger.warning("osm_endpoint_failed", url=overpass_url, status=resp.status_code)
+                except Exception as e:
+                    logger.warning("osm_endpoint_error", url=overpass_url, error=str(e))
+                    continue
+
+            if data is None:
+                logger.error("osm_all_endpoints_failed")
+                return results
+
+            elements = data.get("elements", [])
+            logger.info("osm_results", count=len(elements))
 
             elements = data.get("elements", [])
             logger.info("osm_results", count=len(elements))

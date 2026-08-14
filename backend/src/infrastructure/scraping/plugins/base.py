@@ -5,9 +5,14 @@ Every source plugin must implement this interface.
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+
+import structlog
+
+logger = structlog.get_logger()
 
 if TYPE_CHECKING:
     from playwright.async_api import BrowserContext
@@ -73,6 +78,51 @@ class BaseScraper(ABC):
 
     async def on_after_scrape(self, results: list[ScrapeResult]) -> None:  # noqa: B027
         """Hook called after scraping completes."""
+
+    async def scrape_with_retry(
+        self,
+        context: BrowserContext | None,
+        config: ScraperConfig,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
+    ) -> list[ScrapeResult]:
+        """Scrape with exponential backoff retry."""
+        last_error: Exception | None = None
+        for attempt in range(max_retries):
+            try:
+                results = await self.scrape(context, config)
+                if results:
+                    return results
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        "scrape_retry_empty",
+                        source=self.source_name,
+                        attempt=attempt + 1,
+                        delay=delay,
+                    )
+                    await asyncio.sleep(delay)
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        "scrape_retry_error",
+                        source=self.source_name,
+                        attempt=attempt + 1,
+                        error=str(e)[:100],
+                        delay=delay,
+                    )
+                    await asyncio.sleep(delay)
+
+        if last_error:
+            logger.error(
+                "scrape_failed_all_retries",
+                source=self.source_name,
+                retries=max_retries,
+                error=str(last_error)[:100],
+            )
+        return []
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize plugin metadata."""
