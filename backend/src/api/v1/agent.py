@@ -1,4 +1,5 @@
 """Agent API — autonomy settings, knowledge base, objection handling."""
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -50,7 +51,13 @@ async def get_knowledge(user: CurrentUser):
     kb = get_knowledge_base()
     return {
         "entries": [
-            {"id": e.id, "content": e.content, "source": e.source, "category": e.category, "is_active": e.is_active}
+            {
+                "id": e.id,
+                "content": e.content,
+                "source": e.source,
+                "category": e.category,
+                "is_active": e.is_active,
+            }
             for e in kb.entries
         ]
     }

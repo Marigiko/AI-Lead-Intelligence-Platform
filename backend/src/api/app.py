@@ -14,21 +14,21 @@ from prometheus_client import (
     multiprocess,
 )
 
+from src.api.v1.agent import router as agent_router
 from src.api.v1.analytics import router as analytics_router
 from src.api.v1.auth import router as auth_router
 from src.api.v1.campaigns import router as campaigns_router
 from src.api.v1.companies import router as companies_router
 from src.api.v1.conversations import router as conversations_router
+from src.api.v1.crm import router as crm_router
 from src.api.v1.deals import router as deals_router
+from src.api.v1.deliverability import router as deliverability_router
 from src.api.v1.discovery import router as discovery_router
 from src.api.v1.enrichment import router as enrichment_router
-from src.api.v1.plugins import router as plugins_router
-from src.api.v1.agent import router as agent_router
-from src.api.v1.deliverability import router as deliverability_router
 from src.api.v1.forms import router as forms_router
+from src.api.v1.plugins import router as plugins_router
 from src.api.v1.revenue_agent import router as revenue_agent_router
 from src.api.v1.scoring import router as scoring_router
-from src.api.v1.crm import router as crm_router
 from src.api.v1.settings import router as settings_router
 from src.api.v1.tracking import router as tracking_router
 from src.core.config import get_settings
@@ -78,12 +78,20 @@ def _validate_production_settings(settings: Any) -> None:
     if settings.secret_key in _INSECURE_DEFAULTS:
         errors.append("SECRET_KEY is still set to an insecure default — set a secure random value")
     if settings.jwt_secret_key in _INSECURE_DEFAULTS:
-        errors.append("JWT_SECRET_KEY is still set to an insecure default — set a secure random value")
+        errors.append(
+            "JWT_SECRET_KEY is still set to an insecure default — set a secure random value"
+        )
 
     if len(settings.secret_key) < _MIN_SECRET_LENGTH:
-        errors.append(f"SECRET_KEY is too short ({len(settings.secret_key)} chars) — must be at least {_MIN_SECRET_LENGTH}")
+        errors.append(
+            f"SECRET_KEY is too short ({len(settings.secret_key)} chars) — "
+            f"must be at least {_MIN_SECRET_LENGTH}"
+        )
     if len(settings.jwt_secret_key) < _MIN_SECRET_LENGTH:
-        errors.append(f"JWT_SECRET_KEY is too short ({len(settings.jwt_secret_key)} chars) — must be at least {_MIN_SECRET_LENGTH}")
+        errors.append(
+            f"JWT_SECRET_KEY is too short ({len(settings.jwt_secret_key)} chars) — "
+            f"must be at least {_MIN_SECRET_LENGTH}"
+        )
 
     # Reject trivially repetitive secrets like "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     if len(set(settings.secret_key)) < 8:
@@ -131,6 +139,18 @@ async def lifespan(app: FastAPI):  # noqa: ARG001
     await get_redis()
     get_event_bus()  # Initialize event bus
 
+    # Fail loudly at startup instead of 401-ing on every AI request later.
+    api_key = (settings.openai_api_key or "").strip()
+    if not api_key or api_key.startswith(("your-", "sk-your", "change-me")):
+        logger.warning(
+            "ai_api_key_placeholder",
+            hint=(
+                "OPENAI_API_KEY is missing or a placeholder; all AI features "
+                "(revenue agent, SDR, enrichment AI, message generation) will fail. "
+                "Set a valid key in backend/.env"
+            ),
+        )
+
     logger.info("app_started")
     yield
 
@@ -174,7 +194,14 @@ def create_app() -> FastAPI:
         ]
     else:
         cors_methods = ["*"]
-        cors_headers = ["*"]
+        cors_headers = [
+            "authorization",
+            "content-type",
+            "x-requested-with",
+            "accept",
+            "origin",
+            "x-csrf-token",
+        ]
 
     wrapped = _CORSMiddleware(
         SecurityHeadersMiddleware(

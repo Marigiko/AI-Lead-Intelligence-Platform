@@ -166,7 +166,14 @@ class CRMUseCases:
             "id": str(deal.id),
             "title": deal.title,
             "value": deal.value,
+            "currency": deal.currency,
             "stage": deal.stage,
+            "probability": deal.probability,
+            "company_id": str(deal.company_id) if deal.company_id else None,
+            "expected_close_date": (
+                str(deal.expected_close_date) if deal.expected_close_date else None
+            ),
+            "created_at": str(deal.created_at),
         }
 
     async def update_deal(self, deal_id: UUID, data: dict[str, Any]) -> dict[str, Any]:

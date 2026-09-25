@@ -164,7 +164,10 @@ class AIGateway:
         # Include search intent for justification
         intent_context = ""
         if search_intent:
-            intent_context = f"\n\nUser searched for: '{search_intent}'. Explain WHY this company matches this search intent."
+            intent_context = (
+                f"\n\nUser searched for: '{search_intent}'. "
+                "Explain WHY this company matches this search intent."
+            )
 
         sys_prompt = (
             "You are a B2B sales analyst for a digital services agency. "
@@ -173,8 +176,9 @@ class AIGateway:
             "opportunity_breakdown (object with scores for "
             "web_presence, seo, social, automation, technical), "
             "analysis (2-3 paragraph text analysis in Spanish), "
-            "justification (1-2 sentences in Spanish explaining WHY this company matches the user's search intent, "
-            "specifically mentioning what digital needs it has that match what the user is looking for), "
+            "justification (1-2 sentences in Spanish explaining WHY this company matches "
+            "the user's search intent, specifically mentioning what digital needs it has "
+            "that match what the user is looking for), "
             "recommended_services (array of service names), "
             "estimated_deal_value (number in USD), "
             "priority (high/medium/low), probability (0-100), "

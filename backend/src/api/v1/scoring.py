@@ -1,5 +1,5 @@
 import contextlib
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
@@ -10,6 +10,9 @@ from src.application.scoring.engine import get_scoring_engine
 from src.infrastructure.scraping.seo_analyzer import get_seo_analyzer
 from src.infrastructure.scraping.social_detector import get_social_detector
 from src.infrastructure.scraping.tech_detector import get_tech_detector
+
+if TYPE_CHECKING:
+    from celery import Task
 
 router = APIRouter(prefix="/scoring", tags=["Scoring"])
 
@@ -92,7 +95,7 @@ async def batch_score(data: BatchScoreRequest, user: CurrentUser, session: DBSes
 
     company_ids = [str(cid) for cid in data.company_ids]
     # Dispatch async scoring — tenant_id is mandatory to scope enrichment
-    score_batch.delay(company_ids, str(user.tenant_id))
+    cast("Task", score_batch).delay(company_ids, str(user.tenant_id))
     return {"message": f"Scoring dispatched for {len(company_ids)} companies"}
 
 

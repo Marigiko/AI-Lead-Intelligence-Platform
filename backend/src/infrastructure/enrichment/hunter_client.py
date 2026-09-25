@@ -6,7 +6,6 @@ Uses the hunter_api_key already configured in settings.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import httpx
 import structlog
@@ -45,7 +44,7 @@ class HunterClient:
     def enabled(self) -> bool:
         return self._enabled
 
-    async def domain_search(self, domain: str) -> Optional[HunterResult]:
+    async def domain_search(self, domain: str) -> HunterResult | None:
         """Search for all email addresses associated with a domain."""
         if not self._enabled:
             return None
@@ -86,7 +85,7 @@ class HunterClient:
             logger.error("hunter_search_failed", domain=domain, error=str(e))
             return None
 
-    async def verify_email(self, email: str) -> Optional[dict]:
+    async def verify_email(self, email: str) -> dict | None:
         """Verify a single email address deliverability."""
         if not self._enabled:
             return None

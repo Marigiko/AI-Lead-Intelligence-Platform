@@ -4,6 +4,7 @@ from typing import Any
 
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import task_prerun
 
 from src.core.config import get_settings
 
@@ -50,3 +51,17 @@ config_updates: dict[str, Any] = {
     },
 }
 celery_app.conf.update(config_updates)  # type: ignore[reportUnknownMemberType]
+
+
+@task_prerun.connect  # type: ignore[reportUntypedFunctionDecorator]
+def _reset_db_loop_state(**_kwargs: Any) -> None:
+    """Drop the cached DB engine before every task.
+
+    Each task runs inside its own asyncio.run() loop, but pooled asyncpg
+    connections are bound to the loop that created them. Reusing them from a
+    new loop fails with "attached to a different loop", so the engine must be
+    recreated per task invocation.
+    """
+    from src.core.database import reset_db_cache
+
+    reset_db_cache()

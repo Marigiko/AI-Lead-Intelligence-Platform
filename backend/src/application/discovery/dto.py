@@ -11,6 +11,7 @@ from uuid import UUID
 @dataclass
 class CompanySummary:
     """Brief company info in search results."""
+
     id: UUID
     name: str
     domain: str | None = None

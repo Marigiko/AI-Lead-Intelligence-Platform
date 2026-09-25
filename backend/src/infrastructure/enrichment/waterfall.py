@@ -1,18 +1,18 @@
 """
 Waterfall email enrichment — combines multiple email sources in priority order.
-Priority: website HTML scrape → Hunter.io → Apollo.io → Clearbit → Instagram → Pattern guess (last resort).
+Priority: website HTML scrape → Hunter.io → Apollo.io → Clearbit → Instagram
+→ Pattern guess (last resort).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import structlog
 
 from src.core.config import get_settings
-from src.infrastructure.enrichment.apollo_client import ApolloClient, get_apollo_client
-from src.infrastructure.enrichment.clearbit_client import ClearbitClient, get_clearbit_client
+from src.infrastructure.enrichment.apollo_client import get_apollo_client
+from src.infrastructure.enrichment.clearbit_client import get_clearbit_client
 from src.infrastructure.enrichment.email_guesser import EmailGuesser, get_email_guesser
 from src.infrastructure.enrichment.email_scraper import EmailScraper, get_email_scraper
 from src.infrastructure.enrichment.hunter_client import HunterClient, get_hunter_client
@@ -22,9 +22,9 @@ logger = structlog.get_logger()
 
 @dataclass
 class EnrichedContact:
-    email: Optional[str]
+    email: str | None
     email_confidence: str  # "verified", "inferred", "unverified"
-    phone: Optional[str]
+    phone: str | None
     phone_confidence: str
     sources_used: list[str]
 

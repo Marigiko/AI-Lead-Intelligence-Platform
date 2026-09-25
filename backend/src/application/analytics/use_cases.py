@@ -46,6 +46,19 @@ class AnalyticsUseCases:
             )
         ).scalar() or 0
 
+        total_contacts = (
+            await self._session.execute(
+                select(func.count())
+                .select_from(Company)
+                .where(
+                    and_(
+                        Company.tenant_id == self._tenant_id,
+                        Company.email.isnot(None),
+                    )
+                )
+            )
+        ).scalar() or 0
+
         avg_score = (
             await self._session.execute(
                 select(func.coalesce(func.avg(Company.opportunity_score), 0)).where(
@@ -88,6 +101,7 @@ class AnalyticsUseCases:
 
         return {
             "total_companies": total_companies,
+            "total_contacts": total_contacts,
             "companies_this_week": companies_this_week,
             "avg_opportunity_score": round(float(avg_score)),
             "total_campaigns": total_campaigns,

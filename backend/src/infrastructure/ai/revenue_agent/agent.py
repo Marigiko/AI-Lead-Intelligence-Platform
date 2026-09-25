@@ -87,7 +87,8 @@ Always suggest next steps the user can take.
 Classify the user's intent and extract parameters.
 
 Examples:
-- "Busca restaurantes en Buenos Aires" → search_companies {location: "Buenos Aires", industry: "restaurantes"}
+- "Busca restaurantes en Buenos Aires" →
+  search_companies {location: "Buenos Aires", industry: "restaurantes"}
 - "Analiza la empresa acme.com" → enrich_company {domain: "acme.com"}
 - "Score de acme.com" → score_company {domain: "acme.com"}
 - "Cómo va el pipeline" → pipeline_analytics {}
@@ -150,7 +151,11 @@ Examples:
             return pattern_intent
 
         # AI-powered classification for complex queries
-        system_prompt = f"{self.CAPABILITIES}\n\n{self.INTENT_EXAMPLES}\n\nReturn JSON with: intent, parameters (object), requires_clarification (bool), clarification_prompt (string if needs clarification)"
+        system_prompt = (
+            f"{self.CAPABILITIES}\n\n{self.INTENT_EXAMPLES}\n\n"
+            "Return JSON with: intent, parameters (object), requires_clarification (bool), "
+            "clarification_prompt (string if needs clarification)"
+        )
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -184,7 +189,10 @@ Examples:
             return AgentAction(
                 intent=AgentIntent.UNKNOWN,
                 requires_clarification=True,
-                clarification_prompt="No entendí tu consulta. ¿Podrías reformularla? Puedo ayudarte a buscar empresas, analizar oportunidades, o revisar tu pipeline.",
+                clarification_prompt=(
+                    "No entendí tu consulta. ¿Podrías reformularla? Puedo ayudarte a buscar "
+                    "empresas, analizar oportunidades, o revisar tu pipeline."
+                ),
             )
 
     def _pattern_classify(self, message: str) -> AgentAction | None:
@@ -216,12 +224,16 @@ Examples:
                 intent=AgentIntent.SEARCH_COMPANIES,
                 parameters={"location": location, "industry": industry},
                 requires_clarification=not location and not industry,
-                clarification_prompt="¿Qué tipo de empresas buscas y en qué ubicación? Por ejemplo: 'restaurantes en Buenos Aires'",
+                clarification_prompt=(
+                    "¿Qué tipo de empresas buscas y en qué ubicación? "
+                    "Por ejemplo: 'restaurantes en Buenos Aires'"
+                ),
             )
 
         # Enrich/company info patterns
         enrich_match = re.search(
-            r"(analiza(r)?|enriquece(r)?|info(rmación)? de|detalles de|información sobre)\s+(la empresa\s+)?(.+)?",
+            r"(analiza(r)?|enriquece(r)?|info(rmación)? de|detalles de|información sobre)\s+"
+            r"(la empresa\s+)?(.+)?",
             message,
         )
         if enrich_match:
@@ -297,12 +309,16 @@ Examples:
 
     async def _handle_greeting(
         self,
-        params: dict[str, Any],
-        tenant_id: str | None,
+        _params: dict[str, Any],
+        _tenant_id: str | None,
     ) -> AgentResponse:
         """Handle greeting intent."""
         return AgentResponse(
-            message="¡Hola! Soy Nexus AI, tu agente de inteligencia revenue. Puedo ayudarte a descubrir oportunidades, analizar tu pipeline y ejecutar acciones comerciales. ¿En qué te ayudo hoy?",
+            message=(
+                "¡Hola! Soy Nexus AI, tu agente de inteligencia revenue. Puedo ayudarte a "
+                "descubrir oportunidades, analizar tu pipeline y ejecutar acciones comerciales. "
+                "¿En qué te ayudo hoy?"
+            ),
             intent=AgentIntent.GREETING,
             suggestions=[
                 "Buscar empresas en mi zona",
@@ -313,8 +329,8 @@ Examples:
 
     async def _handle_help(
         self,
-        params: dict[str, Any],
-        tenant_id: str | None,
+        _params: dict[str, Any],
+        _tenant_id: str | None,
     ) -> AgentResponse:
         """Handle help intent."""
         return AgentResponse(
@@ -347,7 +363,10 @@ Examples:
 
         # Return search parameters for frontend to execute
         return AgentResponse(
-            message=f"Voy a buscar empresas{' de ' + industry if industry else ''}{' en ' + location if location else ''}. Procesando...",
+            message=(
+                f"Voy a buscar empresas{' de ' + industry if industry else ''}"
+                f"{' en ' + location if location else ''}. Procesando..."
+            ),
             intent=AgentIntent.SEARCH_COMPANIES,
             data={
                 "action": "execute_search",
@@ -372,7 +391,10 @@ Examples:
         domain = params.get("domain", "")
 
         return AgentResponse(
-            message=f"Analizando {domain}... Voy a obtener datos de presencia digital, tecnología, SEO y contacto.",
+            message=(
+                f"Analizando {domain}... Voy a obtener datos de presencia digital, "
+                "tecnología, SEO y contacto."
+            ),
             intent=AgentIntent.ENRICH_COMPANY,
             data={
                 "action": "execute_enrichment",
@@ -398,7 +420,10 @@ Examples:
         target = domain or name
 
         return AgentResponse(
-            message=f"Evaluando oportunidad de {target}... Analizando presencia digital, SEO, tecnología y señales de compra.",
+            message=(
+                f"Evaluando oportunidad de {target}... Analizando presencia digital, "
+                "SEO, tecnología y señales de compra."
+            ),
             intent=AgentIntent.SCORE_COMPANY,
             data={
                 "action": "execute_scoring",
@@ -416,7 +441,7 @@ Examples:
 
     async def _handle_pipeline(
         self,
-        params: dict[str, Any],
+        _params: dict[str, Any],
         tenant_id: str | None,
     ) -> AgentResponse:
         """Handle pipeline analytics intent."""
@@ -437,7 +462,7 @@ Examples:
 
     async def _handle_campaign_status(
         self,
-        params: dict[str, Any],
+        _params: dict[str, Any],
         tenant_id: str | None,
     ) -> AgentResponse:
         """Handle campaign status intent."""
@@ -482,12 +507,16 @@ Examples:
 
     async def _handle_unknown(
         self,
-        params: dict[str, Any],
-        tenant_id: str | None,
+        _params: dict[str, Any],
+        _tenant_id: str | None,
     ) -> AgentResponse:
         """Handle unknown intent."""
         return AgentResponse(
-            message="No estoy seguro de lo que necesitas. ¿Puedes reformular tu consulta? Puedo ayudarte con búsquedas de empresas, análisis de oportunidades, o revisar tu pipeline.",
+            message=(
+                "No estoy seguro de lo que necesitas. ¿Puedes reformular tu consulta? "
+                "Puedo ayudarte con búsquedas de empresas, análisis de oportunidades, "
+                "o revisar tu pipeline."
+            ),
             intent=AgentIntent.UNKNOWN,
             suggestions=[
                 "Buscar empresas",
@@ -501,7 +530,11 @@ Examples:
         suggestions_map: dict[AgentIntent, list[str]] = {
             AgentIntent.GREETING: ["Buscar empresas", "Ver pipeline", "Qué puedes hacer"],
             AgentIntent.HELP: ["Buscar empresas", "Analizar empresa", "Ver campañas"],
-            AgentIntent.SEARCH_COMPANIES: ["Ver en mapa", "Enriquecer resultados", "Filtrar por score"],
+            AgentIntent.SEARCH_COMPANIES: [
+                "Ver en mapa",
+                "Enriquecer resultados",
+                "Filtrar por score",
+            ],
             AgentIntent.ENRICH_COMPANY: ["Ver score", "Iniciar outreach", "Agregar a campaña"],
             AgentIntent.SCORE_COMPANY: ["Ver desglose", "Crear deal", "Comparar"],
             AgentIntent.PIPELINE_ANALYTICS: ["Ver por etapa", "Crear deal", "Métricas detalladas"],
@@ -542,14 +575,38 @@ Examples:
     def _extract_industry(self, message: str) -> str:
         """Extract industry/sector from message."""
         industries = [
-            "restaurantes", "restaurant", "hoteles", "hotel",
-            "abogados", "lawyers", "médicos", "doctors",
-            "constructoras", "construction", "inmobiliarias", "real estate",
-            "tecnología", "technology", "agencias", "agency",
-            "comercio", "retail", "mayorista", "wholesale",
-            "fabricación", "manufacturing", "agricultura", "agriculture",
-            "educación", "education", "salud", "healthcare",
-            "automotriz", "automotive", "finanzas", "finance",
+            "restaurantes",
+            "restaurant",
+            "hoteles",
+            "hotel",
+            "abogados",
+            "lawyers",
+            "médicos",
+            "doctors",
+            "constructoras",
+            "construction",
+            "inmobiliarias",
+            "real estate",
+            "tecnología",
+            "technology",
+            "agencias",
+            "agency",
+            "comercio",
+            "retail",
+            "mayorista",
+            "wholesale",
+            "fabricación",
+            "manufacturing",
+            "agricultura",
+            "agriculture",
+            "educación",
+            "education",
+            "salud",
+            "healthcare",
+            "automotriz",
+            "automotive",
+            "finanzas",
+            "finance",
         ]
         message_lower = message.lower()
         for industry in industries:

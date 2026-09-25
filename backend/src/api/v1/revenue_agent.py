@@ -7,15 +7,17 @@ natural language and executes lead intelligence actions.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-import structlog
 
 from src.api.dependencies import get_current_user
-from src.domain.user.models import User
 from src.infrastructure.ai.revenue_agent import get_revenue_agent
+
+if TYPE_CHECKING:
+    from src.domain.user.models import User
 
 logger = structlog.get_logger()
 
@@ -25,7 +27,9 @@ router = APIRouter(prefix="/revenue-agent", tags=["Revenue Agent"])
 class ChatRequest(BaseModel):
     """Request to chat with the Revenue Agent."""
 
-    message: str = Field(..., min_length=1, max_length=2000, description="User's natural language message")
+    message: str = Field(
+        ..., min_length=1, max_length=2000, description="User's natural language message"
+    )
     conversation_id: str | None = Field(None, description="Conversation ID for context continuity")
 
 
@@ -102,7 +106,7 @@ async def chat_with_agent(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing message: {str(e)}",
-        )
+        ) from e
 
 
 @router.get("/conversations/{conversation_id}")

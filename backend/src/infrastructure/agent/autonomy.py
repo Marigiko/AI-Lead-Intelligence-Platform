@@ -1,13 +1,13 @@
 """
 Agent autonomy infrastructure — autonomy dial, knowledge base, objection handling.
 """
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import IntEnum
-from typing import Optional
 
 import structlog
 
@@ -16,6 +16,7 @@ logger = structlog.get_logger()
 
 class AutonomyLevel(IntEnum):
     """How autonomous the AI agent is."""
+
     REVIEW_ALL = 1  # Human reviews every message
     AUTO_EXCEPT_OBJECTIONS = 2  # Auto unless objection detected
     FULL_AUTONOMY = 3  # Full autopilot based on rules
@@ -24,6 +25,7 @@ class AutonomyLevel(IntEnum):
 @dataclass
 class KnowledgeBaseEntry:
     """A piece of knowledge for the AI agent."""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     content: str = ""
     source: str = ""  # "pdf", "url", "manual"
@@ -35,9 +37,12 @@ class KnowledgeBaseEntry:
 @dataclass
 class KnowledgeBase:
     """Client knowledge base for AI agent."""
+
     entries: list[KnowledgeBaseEntry] = field(default_factory=list)
 
-    def add_entry(self, content: str, source: str = "manual", category: str = "") -> KnowledgeBaseEntry:
+    def add_entry(
+        self, content: str, source: str = "manual", category: str = ""
+    ) -> KnowledgeBaseEntry:
         entry = KnowledgeBaseEntry(content=content, source=source, category=category)
         self.entries.append(entry)
         return entry
@@ -84,7 +89,7 @@ COMMON_OBJECTIONS = {
 class ObjectionHandler:
     """Detects and handles common sales objections."""
 
-    def detect_objection(self, message: str) -> Optional[dict]:
+    def detect_objection(self, message: str) -> dict | None:
         """Detect if a message contains an objection."""
         msg_lower = message.lower()
         for objection_type, config in COMMON_OBJECTIONS.items():

@@ -13,7 +13,7 @@ Nexus combines an AI Revenue Agent (natural language conversational interface), 
 | Design System | Custom glassmorphism system — electric purple + cyan, glow effects, mesh gradients |
 | Database | PostgreSQL 16 + pgvector, Redis 7, Elasticsearch 8 |
 | Task Queue | Celery + Redis (multi-queue: default, scraping, enrichment, ai, outreach) |
-| AI | LiteLLM (OpenAI, Anthropic, Gemini), RAG, MCP Server |
+| AI | OpenAI-compatible gateway (configurable `OPENAI_API_BASE`), RAG, MCP Server |
 | Real-time | WebSocket (conversation chat, live agent responses) |
 | Charts | Recharts (area, bar, pie) |
 | Maps | Leaflet + react-leaflet |
@@ -78,14 +78,14 @@ This launches all containers via Docker Compose:
 
 | Service | URL | Purpose |
 |---------|-----|---------|
-| Backend API | http://localhost:8000 | FastAPI + business logic |
-| API Docs (Swagger) | http://localhost:8000/docs | Interactive API docs |
-| API Docs (ReDoc) | http://localhost:8000/redoc | Alternative docs |
+| Backend API | http://localhost:8002 | FastAPI + business logic |
+| API Docs (Swagger) | http://localhost:8002/docs | Interactive API docs |
+| API Docs (ReDoc) | http://localhost:8002/redoc | Alternative docs |
 | Frontend | http://localhost:3000 | Next.js dashboard |
-| PostgreSQL | localhost:5434 | Primary database (pgvector) |
-| Redis | localhost:6381 | Cache + Celery broker |
+| PostgreSQL | localhost:5435 | Primary database (pgvector) |
+| Redis | localhost:6382 | Cache + Celery broker |
 | Elasticsearch | http://localhost:9200 | Search engine (optional) |
-| MinIO Console | http://localhost:9001 | Object storage (admin:minioadmin) |
+| MinIO Console | http://localhost:9011 | Object storage (admin:minioadmin) |
 | Celery Worker | — | Background task processing |
 | Celery Beat | — | Scheduled tasks (every 5 min) |
 
@@ -118,7 +118,7 @@ docker compose exec backend uv run python -m data.seeds.seed_companies
 Once the backend is running, register the first user via the API:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/auth/register \
+curl -X POST http://localhost:8002/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@demo.com",
@@ -149,10 +149,10 @@ cd backend && uv run celery -A src.workers.celery_app beat -l info
 
 ```bash
 # Backend health
-curl http://localhost:8000/health
+curl http://localhost:8002/health
 
 # API docs (Swagger UI)
-open http://localhost:8000/docs
+open http://localhost:8002/docs
 
 # Frontend
 open http://localhost:3000
@@ -162,19 +162,19 @@ open http://localhost:3000
 
 ```bash
 # 1. Register a user
-curl -X POST http://localhost:8000/api/v1/auth/register \
+curl -X POST http://localhost:8002/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"test@company.com","password":"pass1234","full_name":"Test User"}'
 
 # 2. Login → get JWT token
-curl -X POST http://localhost:8000/api/v1/auth/login \
+curl -X POST http://localhost:8002/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@company.com","password":"pass1234"}'
 # Response: {"access_token": "...", "token_type": "bearer"}
 
 # 3. Use token on protected routes
 TOKEN="your-jwt-token-here"
-curl http://localhost:8000/api/v1/companies \
+curl http://localhost:8002/api/v1/companies \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -188,7 +188,7 @@ curl http://localhost:8000/api/v1/companies \
 | `/api/v1/companies` | GET/POST | List or create companies |
 | `/api/v1/companies/{id}` | GET/PUT/DELETE | Company detail |
 | `/api/v1/discovery/search` | POST | Run AI discovery search (async) |
-| `/api/v1/discovery/intent` | POST | Parse natural language intent |
+| `/api/v1/discovery/parse-intent` | POST | Parse natural language intent |
 | `/api/v1/enrichment/companies/{id}` | POST | Enrich a company with AI |
 | `/api/v1/companies/{id}/score` | GET | Get opportunity score |
 | `/api/v1/campaigns` | GET/POST | List or create campaigns |
@@ -203,7 +203,7 @@ curl http://localhost:8000/api/v1/companies \
 ### Running Discovery Search
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/discovery/search \
+curl -X POST http://localhost:8002/api/v1/discovery/search \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -440,14 +440,31 @@ Native HTML5 drag-and-drop Kanban board with animated drop zones, deal cards wit
 
 | Priority | Feature | Status |
 |----------|---------|--------|
-| High | Add comprehensive test coverage (Playwright e2estests, pytest integration) | Not started |
-| High | Implement `cleanup_stale_jobs` and `check_pending_conversations` Celery tasks | Stub |
+| High | Add comprehensive test coverage (Playwright e2e tests, more pytest integration) | Thin (34 backend tests, 0 frontend) |
 | Medium | Implement WhatsApp sender (package empty, generator exists) | Partial |
 | Medium | Add Alembic migration history (only `create_all` exists) | Not started |
 | Medium | Conversation summary AI uses placeholder template | Stub |
-| Low | `parse_intent` route bypasses use-case constructor | Fragile |
 | Low | `Contact` domain model has no repo/routes/enrichment | Stub |
 | Low | Production deployment: TLS reverse proxy, backups, IaC | Not started |
+
+> Fixed: Celery beat tasks (`cleanup_stale_jobs`, `check_pending_conversations`) are
+> implemented; discovery search runs async via Celery with Redis-backed result
+> polling (`GET /discovery/search/{id}/status`); MCP server targets the installed
+> `mcp` v2 SDK.
+
+### Running the test suite
+
+Tests require a live Postgres and Redis. Point them at the Docker services:
+
+```bash
+cd backend
+TEST_DATABASE_URL='postgresql+asyncpg://leadplatform:leadplatform@localhost:5435/leadplatform_test' \
+REDIS_URL='redis://localhost:6382/1' \
+uv run pytest -q
+```
+
+Create the test database first:
+`docker compose exec postgres psql -U leadplatform -d leadplatform -c "CREATE DATABASE leadplatform_test;"`
 
 ---
 

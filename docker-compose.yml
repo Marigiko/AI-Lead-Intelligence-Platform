@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile.backend
     ports:
-      - "8000:8000"
+      - "8002:8000"
     env_file:
       - backend/.env
     environment:
@@ -20,8 +20,8 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./backend/src:/app/src
-      - ./backend/alembic:/app/alembic
+      - /d/Projects/AI-Lead-Intelligence-Platform/backend/src:/app/src
+      - /d/Projects/AI-Lead-Intelligence-Platform/backend/alembic:/app/alembic
     command: uv run uvicorn src.api.app:app --host 0.0.0.0 --port 8000 --reload
     restart: unless-stopped
     healthcheck:
@@ -43,8 +43,8 @@ services:
     depends_on:
       - backend
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
+      - /d/Projects/AI-Lead-Intelligence-Platform/frontend/src:/app/src
+      - /d/Projects/AI-Lead-Intelligence-Platform/frontend/public:/app/public
     restart: unless-stopped
 
   # ── Celery Worker ────────────────────────────────────────
@@ -66,7 +66,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./backend/src:/app/src
+      - /d/Projects/AI-Lead-Intelligence-Platform/backend/src:/app/src
     command: uv run celery -A src.workers.celery_app worker -l info -Q default,scraping,enrichment,ai,outreach
     restart: unless-stopped
 
@@ -84,7 +84,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./backend/src:/app/src
+      - /d/Projects/AI-Lead-Intelligence-Platform/backend/src:/app/src
     command: uv run celery -A src.workers.celery_app beat -l info
     restart: unless-stopped
 
@@ -92,7 +92,7 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     ports:
-      - "5434:5432"
+      - "5435:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-leadplatform}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leadplatform}
@@ -115,7 +115,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6381:6379"
+      - "6382:6379"
     volumes:
       - redis_data:/data
     healthcheck:

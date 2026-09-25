@@ -12,13 +12,20 @@ logger = structlog.get_logger()
 
 
 @celery_app.task(name="src.workers.scoring_tasks.score_company")  # type: ignore[reportUntypedFunctionDecorator]
-def score_company(company_id: str, tenant_id: str, search_intent: str | None = None) -> dict[str, Any]:
+def score_company(
+    company_id: str, tenant_id: str, search_intent: str | None = None
+) -> dict[str, Any]:
     """Calculate opportunity score + AI analysis with justification for a company.
 
     tenant_id is mandatory — it scopes enrichment to the correct tenant and
     prevents cross-tenant data leakage when multiple workers are running.
     """
-    logger.info("scoring_started", company_id=company_id, tenant_id=tenant_id, has_intent=bool(search_intent))
+    logger.info(
+        "scoring_started",
+        company_id=company_id,
+        tenant_id=tenant_id,
+        has_intent=bool(search_intent),
+    )
 
     async def _run():
         from src.application.enrichment.orchestrator import EnrichmentOrchestrator
@@ -39,7 +46,9 @@ def score_company(company_id: str, tenant_id: str, search_intent: str | None = N
 
 
 @celery_app.task(name="src.workers.scoring_tasks.score_batch")  # type: ignore[reportUntypedFunctionDecorator]
-def score_batch(company_ids: list[str], tenant_id: str, search_intent: str | None = None) -> dict[str, Any]:
+def score_batch(
+    company_ids: list[str], tenant_id: str, search_intent: str | None = None
+) -> dict[str, Any]:
     """Score multiple companies. Used after discovery.
 
     tenant_id is mandatory — all company_ids must belong to this tenant.

@@ -6,11 +6,8 @@ For companies where scraping didn't find emails.
 from __future__ import annotations
 
 import asyncio
-import re
 import smtplib
-import socket
 from dataclasses import dataclass
-from typing import Optional
 
 import dns.resolver
 import structlog
@@ -18,9 +15,19 @@ import structlog
 logger = structlog.get_logger()
 
 COMMON_PREFIXES = [
-    "info", "contacto", "hola", "ventas", "admin",
-    "soporte", "ayuda", "comercial", "marketing",
-    "oficina", "gerencia", "rrhh", "consultas",
+    "info",
+    "contacto",
+    "hola",
+    "ventas",
+    "admin",
+    "soporte",
+    "ayuda",
+    "comercial",
+    "marketing",
+    "oficina",
+    "gerencia",
+    "rrhh",
+    "consultas",
 ]
 
 
@@ -48,17 +55,18 @@ class EmailGuesser:
 
         for prefix in COMMON_PREFIXES:
             email = f"{prefix}@{domain}".lower()
-            candidates.append(GuessedEmail(
-                email=email,
-                confidence=0.4,
-                source="pattern_guess",
-                verified=False,
-            ))
+            candidates.append(
+                GuessedEmail(
+                    email=email,
+                    confidence=0.4,
+                    source="pattern_guess",
+                    verified=False,
+                )
+            )
 
         # Verify via SMTP if enabled
         if self._verify_smtp:
-            verified = await self._batch_verify(candidates)
-            return verified
+            return await self._batch_verify(candidates)
 
         return candidates
 
@@ -68,7 +76,7 @@ class EmailGuesser:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         verified: list[GuessedEmail] = []
-        for candidate, result in zip(candidates, results):
+        for candidate, result in zip(candidates, results, strict=True):
             if isinstance(result, Exception):
                 continue
             if result:
@@ -87,16 +95,15 @@ class EmailGuesser:
         try:
             # Get MX records
             mx_records = dns.resolver.resolve(domain, "MX")
-            mx_host = str(mx_records[0].exchange).rstrip(".")
+            exchanges = [str(record.exchange).rstrip(".") for record in mx_records]
+            mx_host = exchanges[0] if exchanges else ""
 
             if not mx_host:
                 return False
 
             # Try SMTP connection
             loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(
-                None, self._smtp_check, mx_host, email
-            )
+            return await loop.run_in_executor(None, self._smtp_check, mx_host, email)
         except Exception:
             return False
 
@@ -108,7 +115,7 @@ class EmailGuesser:
                 server.mail("verify@aileadplatform.com")
                 code, _ = server.rcpt(email)
                 return code == 250
-        except (smtplib.SMTPException, socket.timeout, OSError):
+        except (TimeoutError, smtplib.SMTPException, OSError):
             return False
 
 

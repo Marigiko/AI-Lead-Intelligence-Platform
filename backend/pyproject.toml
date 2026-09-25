@@ -80,6 +80,13 @@ line-length = 100
 select = ["E", "F", "I", "N", "UP", "S", "B", "A", "COM", "C4", "DTZ", "ISC", "ICN", "PIE", "PT", "RSE", "RET", "SLF", "SIM", "TID", "TCH", "ARG", "PTH", "ERA"]
 ignore = ["S101", "COM812", "ISC001"]
 
+[tool.ruff.lint.per-file-ignores]
+# FastAPI injects route handler dependencies (CurrentUser, DBSession) that are
+# often unused, and `Depends()` in defaults is the idiomatic DI pattern.
+"src/api/**" = ["ARG001", "ARG002", "B008"]
+# Mock-data generator for local directory scraping; randomness is intentional.
+"src/infrastructure/scraping/plugins/local_directory.py" = ["S311"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
 

@@ -181,7 +181,7 @@ export default function DiscoveryPage() {
       setSelectedLead(null);
 
       try {
-        // POST discovery search
+        // POST discovery search — returns immediately, pipeline runs in a worker
         const result = await api.post<DiscoverySearchResult>("/api/v1/discovery/search", {
           location,
           radius_km: radius,
@@ -191,17 +191,37 @@ export default function DiscoveryPage() {
         });
         setSearchResult(result);
 
-        // GET search results
-        const { items } = await api.get<{ items: CompanyDetail[] }>(
+        // Poll until the search leaves "running" status
+        let search = result;
+        const maxAttempts = 60; // 60 * 3s = 3 min
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          const poll = await api.get<{ status: string } | null>(
+            `/api/v1/discovery/search/${result.search_id}/status`
+          ).catch(() => null);
+          if (!poll || poll.status !== "running") {
+            if (poll?.status === "failed") {
+              throw new Error("La búsqueda falló. Intenta de nuevo.");
+            }
+            break;
+          }
+          search = { ...result, status: poll.status };
+        }
+        setSearchResult(search);
+
+        // GET search results with full company details
+        const data = await api.get<{ items: CompanyDetail[]; total: number }>(
           `/api/v1/discovery/search/${result.search_id}/results`
         );
-        // Sort by newest first (most recent discoveries)
-        const sorted = items.sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+
+        // Sort by opportunity score (highest first) then by date
+        const sorted = (data.items || []).sort(
+          (a, b) => (b.opportunity_score || 0) - (a.opportunity_score || 0)
         );
         setLeads(sorted);
         setSearchStatus("results");
       } catch (err: unknown) {
+        console.error("Search error:", err);
         const apiError = err as ApiError;
         setErrorMessage(
           apiError?.error?.message || "Error en la busqueda. Intenta de nuevo."
@@ -214,7 +234,7 @@ export default function DiscoveryPage() {
 
   const leadsWithCoords = leads.filter(
     (l): l is CompanyDetail & { latitude: number; longitude: number } =>
-      l.latitude !== null && l.longitude !== null
+      l.latitude != null && l.longitude != null
   );
 
   // ─── Render ───

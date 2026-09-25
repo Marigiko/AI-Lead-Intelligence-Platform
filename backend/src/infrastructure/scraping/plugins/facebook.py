@@ -6,7 +6,6 @@ Many businesses have Facebook pages but no website — perfect for "needs web" l
 from __future__ import annotations
 
 import contextlib
-from typing import Any
 
 import structlog
 from playwright.async_api import BrowserContext, Page
@@ -76,7 +75,9 @@ class FacebookScraper(BaseScraper):
 
         # Facebook search results selectors
         try:
-            await page.wait_for_selector('[role="article"], [data-pagelet="SearchResults"]', timeout=8000)
+            await page.wait_for_selector(
+                '[role="article"], [data-pagelet="SearchResults"]', timeout=8000
+            )
         except PlaywrightTimeout:
             logger.warning("facebook_no_results")
             return results

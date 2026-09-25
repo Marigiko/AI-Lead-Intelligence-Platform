@@ -5,7 +5,6 @@ Uses Google's phonenumbers library for international support.
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 import phonenumbers
 import structlog
@@ -13,9 +12,7 @@ import structlog
 logger = structlog.get_logger()
 
 # Argentine phone regex patterns (common formats found in scraping)
-AR_PHONE_REGEX = re.compile(
-    r"(?:\+?54[\s.-]?)?(?:\d{2,4}[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}"
-)
+AR_PHONE_REGEX = re.compile(r"(?:\+?54[\s.-]?)?(?:\d{2,4}[\s.-]?)?\d{3,4}[\s.-]?\d{3,4}")
 
 # Generic international phone regex
 GENERIC_PHONE_REGEX = re.compile(
@@ -40,10 +37,7 @@ class PhoneParser:
 
     def _clean_raw(self, raw: str) -> str:
         """Remove non-printable and weird unicode characters from phone."""
-        cleaned = "".join(
-            c for c in raw
-            if c.isprintable() and ord(c) < 0xE000
-        )
+        cleaned = "".join(c for c in raw if c.isprintable() and ord(c) < 0xE000)
         return cleaned.strip()
 
     def parse(self, raw_number: str, region: str | None = None) -> PhoneResult | None:
@@ -64,7 +58,9 @@ class PhoneParser:
 
             return PhoneResult(
                 number=phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164),
-                formatted=phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.NATIONAL),
+                formatted=phonenumbers.format_number(
+                    parsed, phonenumbers.PhoneNumberFormat.NATIONAL
+                ),
                 country_code=f"+{parsed.country_code}",
                 is_valid=True,
                 number_type=type_str,
@@ -82,16 +78,22 @@ class PhoneParser:
 
         # Use phonenumbers built-in matcher
         for match in phonenumbers.PhoneNumberMatcher(text, region):
-            number_str = phonenumbers.format_number(match.number, phonenumbers.PhoneNumberFormat.E164)
+            number_str = phonenumbers.format_number(
+                match.number, phonenumbers.PhoneNumberFormat.E164
+            )
             if number_str not in seen:
                 seen.add(number_str)
-                results.append(PhoneResult(
-                    number=number_str,
-                    formatted=phonenumbers.format_number(match.number, phonenumbers.PhoneNumberFormat.NATIONAL),
-                    country_code=f"+{match.number.country_code}",
-                    is_valid=phonenumbers.is_valid_number(match.number),
-                    number_type=self._type_to_str(phonenumbers.number_type(match.number)),
-                ))
+                results.append(
+                    PhoneResult(
+                        number=number_str,
+                        formatted=phonenumbers.format_number(
+                            match.number, phonenumbers.PhoneNumberFormat.NATIONAL
+                        ),
+                        country_code=f"+{match.number.country_code}",
+                        is_valid=phonenumbers.is_valid_number(match.number),
+                        number_type=self._type_to_str(phonenumbers.number_type(match.number)),
+                    )
+                )
 
         return results
 

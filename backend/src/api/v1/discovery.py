@@ -106,6 +106,74 @@ async def geocode_location(
     )
 
 
+@router.get("/search/{search_id}/status")
+async def get_search_status(search_id: str, user: CurrentUser) -> dict[str, Any]:
+    """Lightweight polling endpoint: current status of a discovery search."""
+    from src.application.discovery import search_store
+
+    results = await search_store.load_search(search_id)
+    if not results:
+        raise HTTPException(status_code=404, detail="Search not found")
+    return {
+        "search_id": str(results.search_id),
+        "status": results.status,
+        "companies_found": results.companies_found,
+        "companies_new": results.companies_new,
+        "error": results.error,
+    }
+
+
+@router.get("/search/{search_id}/results")
+async def get_search_results(search_id: str, user: CurrentUser, session: DBSession):
+    """Get results of a previous discovery search with full company details."""
+    if user.tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant access required")
+    use_cases = DiscoveryUseCases(session, user.tenant_id)
+    results = await use_cases.get_search_results(search_id)
+    if not results:
+        raise HTTPException(status_code=404, detail="Search not found")
+
+    # Fetch full company details from DB using stored IDs
+
+    from src.infrastructure.database.repositories.company_repo import SQLAlchemyCompanyRepository
+
+    company_repo = SQLAlchemyCompanyRepository(session)
+    items = []
+    for company_id in results.company_ids:
+        company = await company_repo.get_by_id(company_id)
+        if company:
+            items.append(
+                {
+                    "id": str(company.id),
+                    "name": company.name,
+                    "domain": company.domain,
+                    "industry": company.industry,
+                    "city": company.city,
+                    "province": company.province,
+                    "country": company.country,
+                    "phone": company.phone,
+                    "email": company.email,
+                    "opportunity_score": company.opportunity_score or 0,
+                    "status": company.status,
+                    "latitude": company.latitude,
+                    "longitude": company.longitude,
+                    "has_website": bool(company.domain),
+                    "has_ssl": company.has_ssl,
+                    "has_whatsapp": company.has_whatsapp,
+                    "has_chatbot": company.has_chatbot,
+                    "seo_score": company.seo_score,
+                    "page_speed_mobile": company.page_speed_mobile,
+                    "google_rating": company.google_rating,
+                    "google_review_count": company.google_review_count,
+                    "tech_stack": company.tech_stack or [],
+                    "estimated_deal_value": company.estimated_deal_value,
+                    "created_at": str(company.created_at) if company.created_at else None,
+                }
+            )
+
+    return {"items": items, "total": len(items)}
+
+
 @router.get("/sources")
 async def list_sources(user: CurrentUser):  # noqa: ARG001
     """List available scraper sources."""

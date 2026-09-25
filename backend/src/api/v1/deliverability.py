@@ -1,4 +1,5 @@
 """Deliverability API — inbox rotation, SMTP verification, warmup."""
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -62,8 +63,7 @@ async def remove_inbox(inbox_id: str, user: CurrentUser):
 async def verify_email(data: VerifyEmailRequest, user: CurrentUser):
     """Verify email deliverability."""
     verifier = get_smtp_verifier()
-    result = await verifier.verify(data.email)
-    return result
+    return await verifier.verify(data.email)
 
 
 @router.get("/stats")

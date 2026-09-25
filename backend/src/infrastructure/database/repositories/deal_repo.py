@@ -71,40 +71,40 @@ class SQLAlchemyDealRepository(DealRepository):
         return pipeline
 
     async def get_pipeline_stats(self, tenant_id: UUID) -> dict[str, Any]:
-        base = select(Deal).where(Deal.tenant_id == tenant_id)
+        # Aggregate in one pass; won/lost come from the tenant's stage config
+        # (is_won/is_lost flags) instead of hardcoded stage names.
+        sq = (
+            select(Deal.value, PipelineStage.is_won, PipelineStage.is_lost)
+            .join(
+                PipelineStage,
+                (PipelineStage.tenant_id == Deal.tenant_id) & (PipelineStage.name == Deal.stage),
+                isouter=True,
+            )
+            .where(Deal.tenant_id == tenant_id)
+            .subquery()
+        )
 
-        total = (
-            await self._session.execute(select(func.count()).select_from(base.subquery()))
-        ).scalar() or 0
-        total_value = (
+        row = (
             await self._session.execute(
-                select(func.coalesce(func.sum(Deal.value), 0)).select_from(base.subquery())
-            )
-        ).scalar() or 0
-        won_count = (
-            await self._session.execute(
-                select(func.count()).select_from(base.where(Deal.stage == "won").subquery())
-            )
-        ).scalar() or 0
-        won_value = (
-            await self._session.execute(
-                select(func.coalesce(func.sum(Deal.value), 0)).select_from(
-                    base.where(Deal.stage == "won").subquery()
+                select(
+                    func.count(),
+                    func.coalesce(func.sum(sq.c.value), 0),
+                    func.count().filter(sq.c.is_won.is_(True)),
+                    func.coalesce(func.sum(sq.c.value).filter(sq.c.is_won.is_(True)), 0),
+                    func.count().filter(sq.c.is_lost.is_(True)),
                 )
             )
-        ).scalar() or 0
-        lost_count = (
-            await self._session.execute(
-                select(func.count()).select_from(base.where(Deal.stage == "lost").subquery())
-            )
-        ).scalar() or 0
+        ).one()
+
+        total = row[0]
+        won_count = row[2]
 
         return {
             "total_deals": total,
-            "total_value": float(total_value),
+            "total_value": float(row[1]),
             "won_deals": won_count,
-            "won_value": float(won_value),
-            "lost_deals": lost_count,
+            "won_value": float(row[3]),
+            "lost_deals": row[4],
             "win_rate": (won_count / total * 100) if total > 0 else 0,
         }
 

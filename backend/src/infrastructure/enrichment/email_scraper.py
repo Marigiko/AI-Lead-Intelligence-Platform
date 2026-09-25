@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
-from urllib.parse import urljoin
 
 import httpx
 import structlog
@@ -16,24 +14,42 @@ from bs4 import BeautifulSoup
 
 logger = structlog.get_logger()
 
-EMAIL_REGEX = re.compile(
-    r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
-)
+EMAIL_REGEX = re.compile(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}")
 
 BLOCKED_DOMAINS = {
-    "example.com", "test.com", "noreply.com", "no-reply.com",
-    "donotreply.com", "mailer-daemon.com", "postmaster",
+    "example.com",
+    "test.com",
+    "noreply.com",
+    "no-reply.com",
+    "donotreply.com",
+    "mailer-daemon.com",
+    "postmaster",
 }
 
 BLOCKED_PREFIXES = {
-    "noreply", "no-reply", "donotreply", "mailer-daemon",
-    "postmaster", "mailer", "apache", "wordpress", "notification",
+    "noreply",
+    "no-reply",
+    "donotreply",
+    "mailer-daemon",
+    "postmaster",
+    "mailer",
+    "apache",
+    "wordpress",
+    "notification",
 }
 
 CONTACT_PATHS = [
-    "/contact", "/contacto", "/contact-us", "/contactanos",
-    "/about", "/about-us", "/nosotros", "/equipo",
-    "/team", "/support", "/ayuda",
+    "/contact",
+    "/contacto",
+    "/contact-us",
+    "/contactanos",
+    "/about",
+    "/about-us",
+    "/nosotros",
+    "/equipo",
+    "/team",
+    "/support",
+    "/ayuda",
 ]
 
 
@@ -69,12 +85,15 @@ class EmailScraper:
                         email_lower = email.lower()
                         if email_lower not in seen and self._is_valid_email(email_lower):
                             seen.add(email_lower)
-                            results.append(EmailResult(
-                                email=email_lower,
-                                confidence=0.85,
-                                source="contact_page",
-                            ))
-                except Exception:
+                            results.append(
+                                EmailResult(
+                                    email=email_lower,
+                                    confidence=0.85,
+                                    source="contact_page",
+                                )
+                            )
+                except Exception as e:
+                    logger.debug("contact_page_scrape_failed", url=url, error=str(e))
                     continue
 
             # 2. Try homepage as fallback
@@ -85,13 +104,15 @@ class EmailScraper:
                         email_lower = email.lower()
                         if email_lower not in seen and self._is_valid_email(email_lower):
                             seen.add(email_lower)
-                            results.append(EmailResult(
-                                email=email_lower,
-                                confidence=0.6,
-                                source="homepage",
-                            ))
-                except Exception:
-                    pass
+                            results.append(
+                                EmailResult(
+                                    email=email_lower,
+                                    confidence=0.6,
+                                    source="homepage",
+                                )
+                            )
+                except Exception as e:
+                    logger.debug("homepage_scrape_failed", domain=domain, error=str(e))
 
         return results
 
@@ -114,7 +135,7 @@ class EmailScraper:
         mailto_links = soup.find_all("a", href=re.compile(r"mailto:", re.I))
         mailto_emails = []
         for link in mailto_links:
-            href = link.get("href", "")
+            href = str(link.get("href") or "")
             email = href.replace("mailto:", "").split("?")[0].strip()
             if email:
                 mailto_emails.append(email)
@@ -133,9 +154,7 @@ class EmailScraper:
             return False
         if local_part in BLOCKED_PREFIXES:
             return False
-        if len(local_part) < 2:
-            return False
-        return True
+        return len(local_part) >= 2
 
 
 async def get_email_scraper() -> EmailScraper:

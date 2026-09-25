@@ -39,7 +39,7 @@ class OpenStreetMapScraper(BaseScraper):
             return results
 
         try:
-            # Build Overpass query for businesses in radius
+            # Build Overpass query for businesses in radius - broader search
             radius_m = config.radius_km * 1000
             query = f"""
             [out:json][timeout:60];
@@ -48,6 +48,17 @@ class OpenStreetMapScraper(BaseScraper):
               node["name"]["shop"](around:{radius_m},{config.latitude},{config.longitude});
               node["name"]["office"](around:{radius_m},{config.latitude},{config.longitude});
               node["name"]["craft"](around:{radius_m},{config.latitude},{config.longitude});
+              node["name"]["amenity"="restaurant"](around:{radius_m},{config.latitude},{config.longitude});
+              node["name"]["amenity"="cafe"](around:{radius_m},{config.latitude},{config.longitude});
+              node["name"]["amenity"="fast_food"](around:{radius_m},{config.latitude},{config.longitude});
+              node["name"]["shop"="supermarket"](around:{radius_m},{config.latitude},{config.longitude});
+              node["name"]["shop"="convenience"](around:{radius_m},{config.latitude},{config.longitude});
+              node["name"]["amenity"="pharmacy"](around:{radius_m},{config.latitude},{config.longitude});
+              node["name"]["amenity"="bank"](around:{radius_m},{config.latitude},{config.longitude});
+              node["name"]["office"="company"](around:{radius_m},{config.latitude},{config.longitude});
+              way["name"]["amenity"](around:{radius_m},{config.latitude},{config.longitude});
+              way["name"]["shop"](around:{radius_m},{config.latitude},{config.longitude});
+              way["name"]["office"](around:{radius_m},{config.latitude},{config.longitude});
             );
             out body;
             """
@@ -67,9 +78,13 @@ class OpenStreetMapScraper(BaseScraper):
                         if resp.status_code == 200:
                             data = resp.json()
                             break
-                        logger.warning("osm_endpoint_failed", url=overpass_url, status=resp.status_code)
+                        logger.warning(
+                            "osm_endpoint_failed", url=overpass_url, status=resp.status_code
+                        )
                 except Exception as e:
-                    logger.warning("osm_endpoint_error", url=overpass_url, error=str(e))
+                    # repr() instead of str(): httpx timeouts render as an
+                    # empty string, which made this log line useless.
+                    logger.warning("osm_endpoint_error", url=overpass_url, error=repr(e))
                     continue
 
             if data is None:

@@ -1,8 +1,12 @@
 """Inbound Form API — capture leads from external forms."""
+
+import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from src.api.dependencies import DBSession
+
+logger = structlog.get_logger()
 
 router = APIRouter(prefix="/forms", tags=["Inbound"])
 
@@ -34,6 +38,7 @@ async def submit_form(data: FormSubmission, request: Request, session: DBSession
 
     # Extract IP for tracking
     client_ip = request.client.host if request.client else "unknown"
+    logger.info("form_submission_received", source=data.source, ip=client_ip)
 
     # Basic validation
     if not data.email and not data.phone:
@@ -61,6 +66,7 @@ async def submit_form(data: FormSubmission, request: Request, session: DBSession
 async def create_form_config(data: FormConfigRequest):
     """Create a new form configuration."""
     import uuid
+
     form_id = str(uuid.uuid4())[:8]
     _form_configs[form_id] = {
         "id": form_id,
@@ -68,7 +74,10 @@ async def create_form_config(data: FormConfigRequest):
         "redirect_url": data.redirect_url,
         "webhook_url": data.webhook_url,
     }
-    return {"form_id": form_id, "embed_code": f'<form action="/api/v1/forms/submit" method="POST">...</form>'}
+    return {
+        "form_id": form_id,
+        "embed_code": '<form action="/api/v1/forms/submit" method="POST">...</form>',
+    }
 
 
 @router.get("/config/{form_id}")

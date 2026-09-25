@@ -1,12 +1,12 @@
 """
 Deliverability infrastructure — inbox rotation, SMTP verification, warmup.
 """
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
-from typing import Optional
+from datetime import UTC, datetime
 
 import structlog
 
@@ -16,6 +16,7 @@ logger = structlog.get_logger()
 @dataclass
 class InboxConfig:
     """A sending inbox (SMTP account)."""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     host: str = ""
     port: int = 587
@@ -32,6 +33,7 @@ class InboxConfig:
 @dataclass
 class SendQuota:
     """Tracks daily send count for an inbox."""
+
     inbox_id: str = ""
     sent_today: int = 0
     last_reset: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -54,7 +56,7 @@ class InboxRotator:
         self._inboxes = [i for i in self._inboxes if i.id != inbox_id]
         self._quotas.pop(inbox_id, None)
 
-    def get_next_inbox(self) -> Optional[InboxConfig]:
+    def get_next_inbox(self) -> InboxConfig | None:
         """Get next available inbox using round-robin with quota awareness."""
         if not self._inboxes:
             return None
@@ -92,14 +94,16 @@ class InboxRotator:
         stats = []
         for inbox in self._inboxes:
             quota = self._quotas.get(inbox.id)
-            stats.append({
-                "id": inbox.id,
-                "username": inbox.username,
-                "daily_limit": inbox.daily_limit,
-                "sent_today": quota.sent_today if quota else 0,
-                "reputation_score": inbox.reputation_score,
-                "is_active": inbox.is_active,
-            })
+            stats.append(
+                {
+                    "id": inbox.id,
+                    "username": inbox.username,
+                    "daily_limit": inbox.daily_limit,
+                    "sent_today": quota.sent_today if quota else 0,
+                    "reputation_score": inbox.reputation_score,
+                    "is_active": inbox.is_active,
+                }
+            )
         return stats
 
 
@@ -116,7 +120,8 @@ class SMTPVerifier:
 
         try:
             mx_records = dns.resolver.resolve(domain, "MX")
-            mx_host = str(mx_records[0].exchange).rstrip(".")
+            exchanges = [str(record.exchange).rstrip(".") for record in mx_records]
+            mx_host = exchanges[0] if exchanges else ""
             if not mx_host:
                 return {"valid": False, "reason": "no_mx_records"}
         except Exception:
@@ -137,17 +142,30 @@ class SMTPVerifier:
     def quick_check(email: str) -> bool:
         """Quick format validation."""
         import re
+
         pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
         return bool(re.match(pattern, email))
 
     _disposable_domains = {
-        "mailinator.com", "guerrillamail.com", "tempmail.com",
-        "throwaway.email", "yopmail.com", "sharklasers.com",
+        "mailinator.com",
+        "guerrillamail.com",
+        "tempmail.com",
+        "throwaway.email",
+        "yopmail.com",
+        "sharklasers.com",
     }
 
     _role_prefixes = {
-        "info", "admin", "support", "sales", "contact",
-        "hello", "office", "team", "marketing", "noreply",
+        "info",
+        "admin",
+        "support",
+        "sales",
+        "contact",
+        "hello",
+        "office",
+        "team",
+        "marketing",
+        "noreply",
     }
 
 

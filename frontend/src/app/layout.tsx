@@ -5,8 +5,11 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AI Lead Intelligence Platform",
-  description: "Automated B2B sales pipeline powered by AI",
+  title: "Nexus — Revenue Intelligence Platform",
+  description: "AI-powered B2B sales pipeline and revenue intelligence",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

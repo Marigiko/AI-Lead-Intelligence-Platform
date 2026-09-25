@@ -60,7 +60,7 @@ La plataforma está siendo transformada en **Nexus** — un SaaS premium de inte
 ## Prompt Template para Agente de Página
 
 ```
-Trabaja en /mnt/d/Projects/AI-Lead-Intelligence-Platform/frontend.
+Trabaja en /mnt/e/Projects/AI-Lead-Intelligence-Platform/frontend.
 
 Tu tarea es rediseñar completamente la página [RUTA] con el sistema de diseño premium "Nexus".
 

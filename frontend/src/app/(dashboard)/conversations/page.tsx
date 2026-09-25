@@ -195,9 +195,9 @@ export default function ConversationsPage() {
   const selectedConversation = conversations.find((c) => c.id === selectedId);
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex rounded-2xl overflow-hidden bg-glass border border-white/10 shadow-glass">
+    <div className="h-[calc(100vh-8rem)] flex rounded-2xl overflow-hidden glass border border-white/10 shadow-glass">
       {/* Sidebar - Conversation List */}
-      <div className="w-80 border-r border-white/5 flex flex-col">
+      <div className="w-80 border-r border-white/5 flex flex-col glass-sidebar">
         {/* Header */}
         <div className="p-4 border-b border-white/5">
           <div className="flex items-center justify-between mb-3">
@@ -269,7 +269,7 @@ export default function ConversationsPage() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <StatusIcon className={cn("w-4 h-4", config.color)} />
-                        <span className="text-sm font-medium text-foreground truncate max-w-[150px]">
+                        <span className="text-sm font-medium text-foreground truncate max-w-[140px]">
                           {conv.summary || conv.id.slice(0, 12)}
                         </span>
                       </div>
@@ -363,7 +363,7 @@ export default function ConversationsPage() {
                         "max-w-[70%] rounded-2xl px-4 py-3 text-sm",
                         msg.role === "assistant" || msg.role === "user"
                           ? "bg-gradient-to-r from-electric-600 to-cyan-500 text-white rounded-tr-sm"
-                          : "bg-glass border border-white/10 text-foreground rounded-tl-sm"
+                          : "glass-subtle text-foreground rounded-tl-sm"
                       )}
                     >
                       <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -383,7 +383,7 @@ export default function ConversationsPage() {
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder="Escribe un mensaje..."
-                  className="flex-1 h-10 px-4 rounded-xl bg-glass border border-white/10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-electric-500/50 focus:shadow-glow-sm transition-all"
+                  className="flex-1 h-10 px-4 rounded-xl bg-white/5 border border-white/10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-electric-500/50 focus:ring-2 focus:ring-electric-500/20 transition-all"
                   disabled={sending}
                 />
                 <button

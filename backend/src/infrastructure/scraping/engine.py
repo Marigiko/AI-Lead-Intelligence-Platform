@@ -16,7 +16,7 @@ import structlog
 from playwright.async_api import Browser, BrowserContext, Playwright, async_playwright
 
 from src.core.config import get_settings
-from src.infrastructure.scraping.proxy import ProxyConfig, get_proxy_manager
+from src.infrastructure.scraping.proxy import get_proxy_manager
 
 logger = structlog.get_logger()
 
@@ -120,7 +120,6 @@ class BrowserPool:
         # Get proxy from manager (round-robin)
         proxy_manager = get_proxy_manager()
         proxy = proxy_manager.get_proxy()
-        proxy_config: ProxyConfig | None = None
 
         context_kwargs: dict[str, Any] = {
             "viewport": {"width": 1920, "height": 1080},

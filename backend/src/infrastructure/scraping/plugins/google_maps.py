@@ -54,7 +54,7 @@ class GoogleMapsScraper(BaseScraper):
             # Type search query (try multiple selectors for Google Maps updates)
             search_box = page.locator('input[name="q"], input[name="search"], #searchboxinput')
             try:
-                await search_box.wait_for(state='visible', timeout=10000)
+                await search_box.wait_for(state="visible", timeout=10000)
             except Exception:
                 logger.warning("google_maps_search_box_not_found")
                 return results
@@ -94,7 +94,7 @@ class GoogleMapsScraper(BaseScraper):
 
         scroll_container = page.locator('[role="feed"]').first
 
-        for _ in range(20):  # Max 20 scroll iterations
+        for _ in range(30):  # Max 30 scroll iterations for deeper results
             if len(results) >= max_results:
                 break
 
@@ -135,10 +135,10 @@ class GoogleMapsScraper(BaseScraper):
                     )
                     results.append(result)
 
-            # Scroll down
+            # Scroll down faster
             try:
-                await scroll_container.evaluate("el => el.scrollTop += el.scrollHeight")
-                await page.wait_for_timeout(2000)
+                await scroll_container.evaluate("el => el.scrollTop += el.scrollHeight * 2")
+                await page.wait_for_timeout(1200)
             except Exception:
                 break
 
@@ -147,8 +147,9 @@ class GoogleMapsScraper(BaseScraper):
             if await end_indicator.count() > 0:
                 break
 
-        # Click into each result to get detailed info
-        for i, result in enumerate(results[:max_results]):
+        # Get detailed info for first N results (limit to avoid timeout)
+        detail_limit = min(len(results), 15)
+        for i, result in enumerate(results[:detail_limit]):
             try:
                 detail = await self._get_place_details(page, result.source_url)
                 if detail:

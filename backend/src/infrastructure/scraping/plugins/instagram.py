@@ -6,16 +6,17 @@ Uses Instagram's public JSON endpoints (no login required for basic profile data
 
 from __future__ import annotations
 
-import contextlib
 import re
-from typing import Any
-from urllib.parse import urljoin
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import structlog
 
 from src.infrastructure.scraping.engine import ScrapeResult
 from src.infrastructure.scraping.plugins.base import BaseScraper, ScraperConfig
+
+if TYPE_CHECKING:
+    from playwright.async_api import BrowserContext
 
 logger = structlog.get_logger()
 
@@ -31,7 +32,7 @@ class InstagramScraper(BaseScraper):
 
     async def scrape(
         self,
-        context: None,
+        context: BrowserContext | None,  # noqa: ARG002
         config: ScraperConfig,
     ) -> list[ScrapeResult]:
         """Search for business profiles via Instagram public endpoints."""
@@ -65,7 +66,7 @@ class InstagramScraper(BaseScraper):
                     data = response.json()
                     users = data.get("users", [])
 
-                    for user_entry in users[:config.max_results]:
+                    for user_entry in users[: config.max_results]:
                         user = user_entry.get("user", {})
                         username = user.get("username", "")
                         full_name = user.get("full_name", "")
@@ -91,32 +92,41 @@ class InstagramScraper(BaseScraper):
                         if phone_match:
                             normalized["phone"] = phone_match.group(0).strip()
 
-                        results.append(ScrapeResult(
-                            source="instagram",
-                            raw_data=user,
-                            normalized_data=normalized,
-                            confidence=0.6,
-                            source_url=f"https://instagram.com/{username}",
-                            source_id=username,
-                        ))
+                        results.append(
+                            ScrapeResult(
+                                source="instagram",
+                                raw_data=user,
+                                normalized_data=normalized,
+                                confidence=0.6,
+                                source_url=f"https://instagram.com/{username}",
+                                source_id=username,
+                            )
+                        )
 
             except Exception as e:
                 logger.error("instagram_search_error", error=str(e))
 
-        # Also try to get detailed profile info for found accounts
-        for result in results[:5]:
-            try:
-                username = result.source_id
-                detail = await self._get_profile_detail(client, username)
-                if detail:
-                    result.normalized_data.update(detail)
-            except Exception:
-                pass
+            # Also try to get detailed profile info for found accounts.
+            # Must run inside the client context: the client is closed below.
+            for result in results[:5]:
+                try:
+                    username = result.source_id
+                    detail = await self._get_profile_detail(client, username)
+                    if detail:
+                        result.normalized_data.update(detail)
+                except Exception as e:
+                    logger.debug(
+                        "instagram_detail_failed",
+                        username=result.source_id,
+                        error=str(e),
+                    )
 
         logger.info("instagram_completed", results_count=len(results))
         return results
 
-    async def _get_profile_detail(self, client: httpx.AsyncClient, username: str) -> dict[str, Any] | None:
+    async def _get_profile_detail(
+        self, client: httpx.AsyncClient, username: str
+    ) -> dict[str, Any] | None:
         """Get detailed profile info from Instagram public page."""
         try:
             response = await client.get(f"https://www.instagram.com/{username}/")
@@ -128,8 +138,14 @@ class InstagramScraper(BaseScraper):
             match = re.search(r"window\._sharedData\s*=\s*(\{.+?\});</script>", text, re.DOTALL)
             if match:
                 import json
+
                 data = json.loads(match.group(1))
-                user_data = data.get("entry_data", {}).get("ProfilePage", [{}])[0].get("graphql", {}).get("user", {})
+                user_data = (
+                    data.get("entry_data", {})
+                    .get("ProfilePage", [{}])[0]
+                    .get("graphql", {})
+                    .get("user", {})
+                )
 
                 details: dict[str, Any] = {}
 

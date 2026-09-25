@@ -5,7 +5,8 @@ More stable than scraping Google Maps directly. Requires a Google API key.
 
 from __future__ import annotations
 
-from typing import Any
+import asyncio
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import structlog
@@ -13,6 +14,9 @@ import structlog
 from src.core.config import get_settings
 from src.infrastructure.scraping.engine import ScrapeResult
 from src.infrastructure.scraping.plugins.base import BaseScraper, ScraperConfig
+
+if TYPE_CHECKING:
+    from playwright.async_api import BrowserContext
 
 logger = structlog.get_logger()
 
@@ -25,16 +29,16 @@ class GooglePlacesScraper(BaseScraper):
     default_rpm = 60
 
     def __init__(self) -> None:
-        self._api_key = getattr(settings, "google_places_api_key", "")
+        self._api_key = getattr(get_settings(), "google_places_api_key", "")
 
-    async def validate_config(self, config: ScraperConfig) -> str | None:
+    async def validate_config(self, config: ScraperConfig) -> str | None:  # noqa: ARG002
         if not self._api_key:
             return "Google Places API key not configured"
         return None
 
     async def scrape(
         self,
-        context: None,
+        context: BrowserContext | None,  # noqa: ARG002
         config: ScraperConfig,
     ) -> list[ScrapeResult]:
         if not self._api_key:
@@ -47,13 +51,13 @@ class GooglePlacesScraper(BaseScraper):
             lat, lng = config.latitude, config.longitude
             if lat is None or lng is None:
                 lat, lng = await self._geocode_location(client, config.location)
-                if lat is None:
+                if lat is None or lng is None:
                     return []
 
             # Step 2: Search nearby places
             try:
                 search_results = await self._search_nearby(client, lat, lng, config)
-                for place in search_results[:config.max_results]:
+                for place in search_results[: config.max_results]:
                     place_id = place.get("place_id", "")
                     detail = await self._get_place_detail(client, place_id)
 
@@ -70,20 +74,27 @@ class GooglePlacesScraper(BaseScraper):
                             normalized["phone"] = detail["formatted_phone_number"]
                         if detail.get("website"):
                             normalized["website"] = detail["website"]
-                            normalized["domain"] = detail["website"].replace("https://", "").replace("http://", "").split("/")[0]
+                            normalized["domain"] = (
+                                detail["website"]
+                                .replace("https://", "")
+                                .replace("http://", "")
+                                .split("/")[0]
+                            )
                         if detail.get("rating"):
                             normalized["google_rating"] = detail["rating"]
                         if detail.get("user_ratings_total"):
                             normalized["google_review_count"] = detail["user_ratings_total"]
 
-                    results.append(ScrapeResult(
-                        source="google_places",
-                        raw_data=place,
-                        normalized_data=normalized,
-                        confidence=0.95,
-                        source_url=detail.get("url", "") if detail else "",
-                        source_id=place_id,
-                    ))
+                    results.append(
+                        ScrapeResult(
+                            source="google_places",
+                            raw_data=place,
+                            normalized_data=normalized,
+                            confidence=0.95,
+                            source_url=detail.get("url", "") if detail else "",
+                            source_id=place_id,
+                        )
+                    )
 
             except Exception as e:
                 logger.error("google_places_error", error=str(e))
@@ -91,7 +102,9 @@ class GooglePlacesScraper(BaseScraper):
         logger.info("google_places_completed", results_count=len(results))
         return results
 
-    async def _geocode_location(self, client: httpx.AsyncClient, location: str) -> tuple[float | None, float | None]:
+    async def _geocode_location(
+        self, client: httpx.AsyncClient, location: str
+    ) -> tuple[float | None, float | None]:
         """Geocode a location string to lat/lng."""
         try:
             response = await client.get(
@@ -116,7 +129,7 @@ class GooglePlacesScraper(BaseScraper):
         params: dict[str, str] = {
             "location": f"{lat},{lng}",
             "radius": str(config.radius_km * 1000),
-            "key": self._api_key,
+            "key": self._api_key or "",
         }
         if config.query:
             params["keyword"] = config.query
@@ -133,8 +146,7 @@ class GooglePlacesScraper(BaseScraper):
             # Handle pagination
             next_page_token = data.get("next_page_token")
             if next_page_token and len(all_results) < config.max_results:
-                await httpx.AsyncClient().get  # Small delay for token to be valid
-                import asyncio
+                # Small delay for token to be valid
                 await asyncio.sleep(2)
 
                 params2 = {"pagetoken": next_page_token, "key": self._api_key}
@@ -147,14 +159,19 @@ class GooglePlacesScraper(BaseScraper):
 
         return all_results
 
-    async def _get_place_detail(self, client: httpx.AsyncClient, place_id: str) -> dict[str, Any] | None:
+    async def _get_place_detail(
+        self, client: httpx.AsyncClient, place_id: str
+    ) -> dict[str, Any] | None:
         """Get detailed information for a place."""
         try:
             response = await client.get(
                 "https://maps.googleapis.com/maps/api/place/details/json",
                 params={
                     "place_id": place_id,
-                    "fields": "name,formatted_phone_number,website,rating,user_ratings_total,url,formatted_address",
+                    "fields": (
+                        "name,formatted_phone_number,website,rating,"
+                        "user_ratings_total,url,formatted_address"
+                    ),
                     "key": self._api_key,
                 },
             )

@@ -69,6 +69,21 @@ export default function DashboardLayout({
     }
   }, [isLoading, isAuthenticated, router]);
 
+  /* ─── Active Route Check ─── */
+  const isActive = useCallback(
+    (href: string) => {
+      if (href === "/") return pathname === "/";
+      return pathname === href || pathname.startsWith(href + "/");
+    },
+    [pathname]
+  );
+
+  /* ─── Logout Handler ─── */
+  const handleLogout = useCallback(() => {
+    logout();
+    router.push("/login");
+  }, [logout, router]);
+
   /* ─── Auth Loading State ─── */
   if (isLoading) {
     return (
@@ -87,21 +102,6 @@ export default function DashboardLayout({
   }
 
   if (!user) return null;
-
-  /* ─── Active Route Check (fixed) ─── */
-  const isActive = useCallback(
-    (href: string) => {
-      if (href === "/") return pathname === "/";
-      return pathname === href || pathname.startsWith(href + "/");
-    },
-    [pathname]
-  );
-
-  /* ─── Logout Handler ─── */
-  const handleLogout = useCallback(() => {
-    logout();
-    router.push("/login");
-  }, [logout, router]);
 
   /* ─── Breadcrumb Generation ─── */
   const currentNav = navItems.find((item) => isActive(item.href));

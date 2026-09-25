@@ -14,7 +14,6 @@ import structlog
 from src.core.events import DomainEvent, get_event_bus
 from src.infrastructure.ai.gateway import get_ai_gateway
 from src.infrastructure.database.repositories.company_repo import SQLAlchemyCompanyRepository
-from src.infrastructure.enrichment.email_scraper import get_email_scraper
 from src.infrastructure.enrichment.phone_parser import get_phone_parser
 from src.infrastructure.enrichment.waterfall import get_waterfall_enrichment
 from src.infrastructure.scraping.seo_analyzer import get_seo_analyzer
@@ -106,11 +105,17 @@ class EnrichmentOrchestrator:
         try:
             if not company.email:
                 waterfall = await get_waterfall_enrichment()
-                contact_result = await waterfall.enrich(company.domain, existing_email=company.email)
+                contact_result = await waterfall.enrich(
+                    company.domain, existing_email=company.email
+                )
                 if contact_result.email:
                     company.email = contact_result.email
                     updated_fields.append("email")
-                    logger.info("email_enriched", company_id=str(company_id), source=contact_result.sources_used)
+                    logger.info(
+                        "email_enriched",
+                        company_id=str(company_id),
+                        source=contact_result.sources_used,
+                    )
         except Exception as e:
             logger.error("email_enrichment_failed", company_id=str(company_id), error=str(e))
 
@@ -153,7 +158,9 @@ class EnrichmentOrchestrator:
             "seo_score": company.seo_score,
         }
 
-    async def analyze_and_score(self, company_id: UUID, search_intent: str | None = None) -> dict[str, Any]:
+    async def analyze_and_score(
+        self, company_id: UUID, search_intent: str | None = None
+    ) -> dict[str, Any]:
         """Run enrichment + AI analysis + scoring."""
         # First enrich
         enrich_result: dict[str, Any] = await self.enrich_company(company_id)

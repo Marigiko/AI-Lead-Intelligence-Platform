@@ -35,6 +35,16 @@ INTENT_MAPPINGS: dict[str, dict[str, Any]] = {
         "signals": ["no_website"],
         "keywords": ["negocio", "empresa", "local"],
     },
+    "sin website": {
+        "has_website": False,
+        "signals": ["no_website"],
+        "keywords": ["negocio", "empresa", "local"],
+    },
+    "sin web": {
+        "has_website": False,
+        "signals": ["no_website"],
+        "keywords": ["negocio", "empresa", "local"],
+    },
     "sin presencia digital": {
         "has_website": False,
         "signals": ["no_website", "no_social_media", "no_google_business"],

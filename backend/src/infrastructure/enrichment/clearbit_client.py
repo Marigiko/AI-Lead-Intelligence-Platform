@@ -6,7 +6,6 @@ Uses the clearbit_api_key already configured in settings.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import httpx
 import structlog
@@ -63,7 +62,7 @@ class ClearbitClient:
     def enabled(self) -> bool:
         return self._enabled
 
-    async def enrich_company(self, domain: str) -> Optional[ClearbitResult]:
+    async def enrich_company(self, domain: str) -> ClearbitResult | None:
         """Look up company and person data by domain."""
         if not self._enabled:
             return None
@@ -86,7 +85,9 @@ class ClearbitClient:
                         industry=data.get("category", {}).get("industry", ""),
                         sector=data.get("category", {}).get("sector", ""),
                         employee_count=str(data.get("metrics", {}).get("employees", "")),
-                        annual_revenue=str(data.get("metrics", {}).get("estimatedAnnualRevenue", "")),
+                        annual_revenue=str(
+                            data.get("metrics", {}).get("estimatedAnnualRevenue", "")
+                        ),
                         city=data.get("geo", {}).get("city", ""),
                         state=data.get("geo", {}).get("state", ""),
                         country=data.get("geo", {}).get("country", ""),
@@ -109,12 +110,14 @@ class ClearbitClient:
                 if people_response.status_code == 200:
                     person_data = people_response.json().get("person", {})
                     if person_data:
-                        people.append(ClearbitPerson(
-                            full_name=person_data.get("name", {}).get("fullName", ""),
-                            title=person_data.get("employment", {}).get("title", ""),
-                            email=person_data.get("email", ""),
-                            linkedin_url=person_data.get("linkedin", {}).get("handle", ""),
-                        ))
+                        people.append(
+                            ClearbitPerson(
+                                full_name=person_data.get("name", {}).get("fullName", ""),
+                                title=person_data.get("employment", {}).get("title", ""),
+                                email=person_data.get("email", ""),
+                                linkedin_url=person_data.get("linkedin", {}).get("handle", ""),
+                            )
+                        )
 
                 if company or people:
                     return ClearbitResult(company=company, people=people)

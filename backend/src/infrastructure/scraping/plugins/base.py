@@ -50,6 +50,8 @@ class BaseScraper(ABC):
     requires_browser: bool = True
     requires_api_key: bool = False
     default_rpm: int = 30  # requests per minute
+    _api_key: str | None = None
+    _enabled: bool = True
 
     @abstractmethod
     async def scrape(
@@ -94,7 +96,7 @@ class BaseScraper(ABC):
                 if results:
                     return results
                 if attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)
+                    delay = base_delay * (2**attempt)
                     logger.warning(
                         "scrape_retry_empty",
                         source=self.source_name,
@@ -105,7 +107,7 @@ class BaseScraper(ABC):
             except Exception as e:
                 last_error = e
                 if attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)
+                    delay = base_delay * (2**attempt)
                     logger.warning(
                         "scrape_retry_error",
                         source=self.source_name,
@@ -124,6 +126,25 @@ class BaseScraper(ABC):
             )
         return []
 
+    def configure(
+        self, *, api_key: str | None = None, rpm: int | None = None, enabled: bool | None = None
+    ) -> None:
+        """Update plugin configuration at runtime."""
+        if api_key is not None:
+            self._api_key = api_key
+        if rpm is not None:
+            self.default_rpm = rpm
+        if enabled is not None:
+            self._enabled = enabled
+
+    @property
+    def api_key(self) -> str | None:
+        return self._api_key
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled
+
     def to_dict(self) -> dict[str, Any]:
         """Serialize plugin metadata."""
         return {
@@ -132,4 +153,6 @@ class BaseScraper(ABC):
             "requires_browser": self.requires_browser,
             "requires_api_key": self.requires_api_key,
             "default_rpm": self.default_rpm,
+            "has_api_key": self._api_key is not None,
+            "enabled": self._enabled,
         }

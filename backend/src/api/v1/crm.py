@@ -1,5 +1,4 @@
 """CRM API — pipeline stages and deal management."""
-from uuid import UUID
 
 from fastapi import APIRouter
 from pydantic import BaseModel

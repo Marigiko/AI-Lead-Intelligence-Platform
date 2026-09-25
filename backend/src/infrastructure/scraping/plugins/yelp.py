@@ -44,7 +44,9 @@ class YelpScraper(BaseScraper):
             # Navigate to Yelp search
             location_encoded = config.location.replace(" ", "+") if config.location else ""
             query_encoded = config.query.replace(" ", "+") if config.query else ""
-            url = f"https://www.yelp.com/search?find_desc={query_encoded}&find_loc={location_encoded}"
+            url = (
+                f"https://www.yelp.com/search?find_desc={query_encoded}&find_loc={location_encoded}"
+            )
 
             await page.goto(url, wait_until="domcontentloaded")
             await page.wait_for_timeout(3000)
@@ -74,7 +76,9 @@ class YelpScraper(BaseScraper):
 
         # Wait for results to load
         try:
-            await page.wait_for_selector('[data-testid="serp-ia-card"], .container__09f24__1j2su', timeout=10000)
+            await page.wait_for_selector(
+                '[data-testid="serp-ia-card"], .container__09f24__1j2su', timeout=10000
+            )
         except PlaywrightTimeout:
             logger.warning("yelp_no_results")
             return results
@@ -85,7 +89,9 @@ class YelpScraper(BaseScraper):
                 break
 
             # Get business cards
-            items = page.locator('[data-testid="serp-ia-card"] a.css-1m051bw, .container__09f24__1j2su h3 a')
+            items = page.locator(
+                '[data-testid="serp-ia-card"] a.css-1m051bw, .container__09f24__1j2su h3 a'
+            )
             count = await items.count()
 
             for i in range(count):
@@ -115,7 +121,7 @@ class YelpScraper(BaseScraper):
             await page.wait_for_timeout(2000)
 
         # Get details for each result
-        for i, result in enumerate(results[:min(5, len(results))]):
+        for i, result in enumerate(results[: min(5, len(results))]):
             try:
                 detail = await self._get_business_details(page, result.normalized_data["name"])
                 if detail:
@@ -125,18 +131,18 @@ class YelpScraper(BaseScraper):
 
         return results
 
-    async def _get_business_details(self, page: Page, business_name: str) -> dict[str, Any] | None:
+    async def _get_business_details(self, page: Page, _business_name: str) -> dict[str, Any] | None:
         """Search for a specific business and extract details."""
         details: dict[str, Any] = {}
 
         try:
             # Extract phone from search results page
-            phone_el = page.locator(f'[class*="phone"]').first
+            phone_el = page.locator('[class*="phone"]').first
             if await phone_el.count() > 0:
                 details["phone"] = (await phone_el.inner_text()).strip()
 
             # Extract address
-            addr_el = page.locator(f'[class*="address"]').first
+            addr_el = page.locator('[class*="address"]').first
             if await addr_el.count() > 0:
                 details["address"] = (await addr_el.inner_text()).strip()
 
@@ -148,6 +154,7 @@ class YelpScraper(BaseScraper):
                 match = re.search(r"url=([^&]+)", href)
                 if match:
                     from urllib.parse import unquote
+
                     details["website"] = unquote(match.group(1))
 
             # Extract categories

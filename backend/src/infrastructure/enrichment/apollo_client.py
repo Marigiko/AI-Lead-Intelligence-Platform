@@ -6,7 +6,6 @@ Uses the apollo_api_key already configured in settings.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import httpx
 import structlog
@@ -59,7 +58,7 @@ class ApolloClient:
     def enabled(self) -> bool:
         return self._enabled
 
-    async def enrich_company(self, domain: str) -> Optional[ApolloResult]:
+    async def enrich_company(self, domain: str) -> ApolloResult | None:
         """Search for company and contacts by domain."""
         if not self._enabled:
             return None
@@ -107,15 +106,17 @@ class ApolloClient:
                 contacts: list[ApolloContact] = []
                 if contacts_response.status_code == 200:
                     for person in contacts_response.json().get("people", []):
-                        contacts.append(ApolloContact(
-                            first_name=person.get("first_name", ""),
-                            last_name=person.get("last_name", ""),
-                            full_name=person.get("name", ""),
-                            title=person.get("title", ""),
-                            email=person.get("email", ""),
-                            phone=person.get("sanitized_phone", ""),
-                            linkedin_url=person.get("linkedin_url", ""),
-                        ))
+                        contacts.append(
+                            ApolloContact(
+                                first_name=person.get("first_name", ""),
+                                last_name=person.get("last_name", ""),
+                                full_name=person.get("name", ""),
+                                title=person.get("title", ""),
+                                email=person.get("email", ""),
+                                phone=person.get("sanitized_phone", ""),
+                                linkedin_url=person.get("linkedin_url", ""),
+                            )
+                        )
 
                 return ApolloResult(company=company, contacts=contacts)
 

@@ -1,8 +1,9 @@
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import CurrentUser, DBSession
@@ -29,7 +30,6 @@ class CompanyResponse(BaseModel):
     country: str | None
     phone: str | None
     email: str | None
-    website: str | None = None
     opportunity_score: int
     status: str
     created_at: Any
@@ -38,6 +38,11 @@ class CompanyResponse(BaseModel):
     justification: str | None = None
 
     model_config = {"from_attributes": True}
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def website(self) -> str | None:
+        return f"https://{self.domain}" if self.domain else None
 
 
 class CompanyListResponse(BaseModel):
@@ -53,8 +58,8 @@ class CompanyDetailResponse(CompanyResponse):
     revenue_est: float | None
     description: str | None
     logo_url: str | None
-    latitude: float | None
-    longitude: float | None
+    latitude: float | None = None
+    longitude: float | None = None
     whatsapp: str | None
     linkedin_url: str | None
     facebook_url: str | None
@@ -80,12 +85,27 @@ class CompanyDetailResponse(CompanyResponse):
 class CreateCompanyRequest(BaseModel):
     name: str
     domain: str | None = None
+    website: str | None = None
     industry: str | None = None
     city: str | None = None
     province: str | None = None
     country: str | None = None
+    address: str | None = None
+    description: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     phone: str | None = None
     email: str | None = None
+    whatsapp: str | None = None
+    linkedin_url: str | None = None
+    facebook_url: str | None = None
+    instagram_url: str | None = None
+
+
+def _domain_from_website(url: str) -> str:
+    """Extract the bare domain from a website URL (e.g. https://www.x.com/a -> x.com)."""
+    host = urlparse(url).netloc or url.split("/")[0]
+    return host.removeprefix("www.")
 
 
 # --- Routes ---
@@ -108,13 +128,21 @@ async def create_company(
     company = Company(
         tenant_id=user.tenant_id,
         name=data.name,
-        domain=data.domain,
+        domain=data.domain or (_domain_from_website(data.website) if data.website else None),
         industry=data.industry,
         city=data.city,
         province=data.province,
         country=data.country,
+        address=data.address,
+        description=data.description,
+        latitude=data.latitude,
+        longitude=data.longitude,
         phone=data.phone,
         email=data.email,
+        whatsapp=data.whatsapp,
+        linkedin_url=data.linkedin_url,
+        facebook_url=data.facebook_url,
+        instagram_url=data.instagram_url,
     )
     company = await repo.create(company)
     await session.commit()

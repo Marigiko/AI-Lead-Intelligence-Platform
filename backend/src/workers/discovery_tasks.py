@@ -18,13 +18,15 @@ def run_discovery_search(
     radius_km: int = 50,
     max_results: int = 100,
     sources: list[str] | None = None,
+    search_id: str | None = None,
 ) -> dict[str, Any]:
     """Execute a full discovery search as a background task."""
     logger.info("discovery_task_started", tenant_id=tenant_id, location=location)
 
     async def _run():
-        from uuid import UUID
+        from uuid import UUID, uuid4
 
+        from src.application.discovery import search_store
         from src.application.discovery.dto import DiscoverySearchRequest
         from src.application.discovery.orchestrator import DiscoveryOrchestrator
         from src.core.database import get_session_factory
@@ -39,7 +41,11 @@ def run_discovery_search(
                 max_results=max_results,
                 sources=sources or [],
             )
-            result = await orchestrator.execute(request)
+            result = await orchestrator.execute(
+                request, search_id=UUID(search_id) if search_id else uuid4()
+            )
+            # Persist so the API process can serve polling requests.
+            await search_store.save_search(result)
             return {
                 "search_id": str(result.search_id),
                 "status": result.status,
@@ -87,10 +93,19 @@ def cleanup_stale_jobs() -> None:
 
 
 async def _cleanup_browser_pool() -> None:
-    """Stop the browser pool to release stale contexts."""
+    """Stop the browser pool to release stale contexts.
+
+    The pool singleton may hold Playwright objects bound to an event loop
+    from a previous task execution (Celery forks reuse the process), so
+    stopping it can raise "attached to a different loop". That is expected
+    for stale state — log and move on instead of failing the whole cleanup.
+    """
     from src.infrastructure.scraping.engine import get_browser_pool
 
-    pool = get_browser_pool()
-    if pool.active_count > 0:
-        logger.info("cleanup_browser_pool", active_contexts=pool.active_count)
+    try:
+        pool = get_browser_pool()
+        if pool.active_count > 0:
+            logger.info("cleanup_browser_pool", active_contexts=pool.active_count)
         await pool.stop()
+    except RuntimeError as e:
+        logger.warning("cleanup_browser_pool_skipped", error=str(e))
