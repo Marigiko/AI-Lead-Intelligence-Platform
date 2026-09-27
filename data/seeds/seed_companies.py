@@ -5,6 +5,7 @@ Run: docker compose exec backend uv run python -m data.seeds.seed_companies
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -16,6 +17,16 @@ from src.domain.company.models import Company, CompanySource
 from src.domain.tenant.models import Tenant
 from src.domain.user.models import User
 from src.core.security import hash_password
+
+
+def _require_seed_admin_password() -> str:
+    password = os.environ.get("SEED_ADMIN_PASSWORD", "").strip()
+    if not password:
+        sys.exit(
+            "Error: SEED_ADMIN_PASSWORD is not set. "
+            "Export it before seeding (it is the password for the seeded admin user)."
+        )
+    return password
 
 
 SEED_COMPANIES = [
@@ -221,6 +232,7 @@ SEED_USER = {
 
 
 async def seed():
+    admin_password = _require_seed_admin_password()
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -235,7 +247,7 @@ async def seed():
         # Create user
         user = User(
             tenant_id=tenant.id,
-            hashed_password=hash_password("demo1234"),
+            hashed_password=hash_password(admin_password),
             **SEED_USER,
         )
         session.add(user)
@@ -247,7 +259,7 @@ async def seed():
 
         await session.commit()
         print(f"Seeded: 1 tenant, 1 user, {len(SEED_COMPANIES)} companies")
-        print(f"Login: admin@demo.com / demo1234")
+        print(f"Login: admin@demo.com")
 
 
 if __name__ == "__main__":

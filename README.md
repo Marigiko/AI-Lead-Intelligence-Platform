@@ -122,7 +122,7 @@ curl -X POST http://localhost:8002/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "admin@demo.com",
-    "password": "demo1234",
+    "password": "<whatever SEED_ADMIN_PASSWORD was set to>",
     "full_name": "Admin User"
   }'
 ```
